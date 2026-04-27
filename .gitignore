@@ -1,2 +1,5 @@
 __pycache__/
 data.db
+mcp-server/*.zip
+mcp-server/*.exe
+.superpowers/

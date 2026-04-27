@@ -4,10 +4,10 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.date import DateTrigger
 
 from models.models import SessionLocal, Schedule, Post
-from publisher.publisher import MockPublisher
+from publisher.publisher import get_publisher
 
 _scheduler = BackgroundScheduler()
-_publisher = MockPublisher()
+_publisher = get_publisher()
 
 
 def _publish_post(post_id: int):

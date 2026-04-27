@@ -50,6 +50,10 @@ async def create_post(
     action: str = Form(default="draft"),
     images: list[UploadFile] = File(default=[]),
 ):
+    # Convert datetime-local format (YYYY-MM-DDTHH:MM) to expected
+    if scheduled_at and "T" in scheduled_at:
+        scheduled_at = scheduled_at.replace("T", " ") + ":00"
+
     # Limit images
     if len(images) > MAX_IMAGES:
         images = images[:MAX_IMAGES]
@@ -149,8 +153,8 @@ def publish_now(post_id: int = Form(...)):
                 post.updated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 db.commit()
             else:
-                from publisher.publisher import MockPublisher
-                pub = MockPublisher()
+                from publisher.publisher import get_publisher
+                pub = get_publisher()
                 result = pub.publish(post)
                 now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 post.status = "published" if result.success else "failed"
@@ -177,8 +181,8 @@ def retry_post(post_id: int = Form(...)):
     try:
         post = db.query(Post).filter(Post.id == post_id).first()
         if post and post.status == "failed":
-            from publisher.publisher import MockPublisher
-            pub = MockPublisher()
+            from publisher.publisher import get_publisher
+            pub = get_publisher()
             result = pub.publish(post)
             now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             post.status = "published" if result.success else "failed"
