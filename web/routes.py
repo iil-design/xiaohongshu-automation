@@ -20,8 +20,7 @@ def index(request: Request):
     db = SessionLocal()
     try:
         posts = db.query(Post).order_by(Post.created_at.desc()).all()
-        return request.app.state.templates.TemplateResponse("index.html", {
-            "request": request,
+        return request.app.state.templates.TemplateResponse(request, "index.html", {
             "posts": [p.to_dict() for p in posts],
         })
     finally:
@@ -37,8 +36,7 @@ def editor(request: Request, post_id: int = None):
             post = db.query(Post).filter(Post.id == post_id).first()
         finally:
             db.close()
-    return request.app.state.templates.TemplateResponse("editor.html", {
-        "request": request,
+    return request.app.state.templates.TemplateResponse(request, "editor.html", {
         "post": post.to_dict() if post else None,
     })
 
@@ -217,8 +215,7 @@ def history(request: Request):
                 "message": log.message,
                 "created_at": log.created_at,
             })
-        return request.app.state.templates.TemplateResponse("history.html", {
-            "request": request,
+        return request.app.state.templates.TemplateResponse(request, "history.html", {
             "logs": log_list,
         })
     finally:
