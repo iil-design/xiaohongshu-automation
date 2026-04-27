@@ -1,0 +1,37 @@
+<h2>项目目录结构</h2>
+<p class="subtitle">static/ 是项目根目录下的文件夹</p>
+
+<pre style="background:#1e1e1e; color:#d4d4d4; padding:20px; border-radius:8px; font-family:Consolas,monospace; font-size:13px; line-height:1.8;">
+d:\桌面\agent\
+├── <span style="color:#6a9955;">.venv/</span>                ← Python 虚拟环境
+├── <span style="color:#ce9178;">static/</span>
+│   └── <span style="color:#ce9178;">uploads/</span>          ← 📁 上传的图片存这里
+│       ├── 20260427_001.jpg
+│       ├── 20260427_002.jpg
+│       └── ...
+├── <span style="color:#ce9178;">templates/</span>           ← Jinja2 页面模板
+│   ├── index.html         ← 帖子管理首页
+│   ├── editor.html        ← 新建/编辑帖子
+│   └── history.html       ← 发布历史
+├── <span style="color:#ce9178;">web/</span>                ← FastAPI 路由
+│   └── routes.py
+├── <span style="color:#ce9178;">agent/</span>              ← LangChain Agent
+│   └── poster_agent.py
+├── <span style="color:#ce9178;">scheduler/</span>          ← APScheduler 调度
+│   └── scheduler.py
+├── <span style="color:#ce9178;">publisher/</span>          ← 发布接口（可插拔）
+│   └── publisher.py
+├── <span style="color:#ce9178;">models/</span>             ← 数据库模型
+│   └── models.py
+├── main.py                ← FastAPI 启动入口
+└── config.py              ← 配置文件
+</pre>
+
+<div class="pros-cons" style="margin-top: 16px;">
+  <div class="pros"><h4>路径对应关系</h4><ul>
+    <li>文件系统: <code>d:\桌面\agent\static\uploads\xxx.jpg</code></li>
+    <li>数据库记录: <code>/static/uploads/xxx.jpg</code></li>
+    <li>页面访问: <code>&lt;img src="/static/uploads/xxx.jpg"&gt;</code></li>
+    <li>FastAPI 挂载: <code>app.mount("/static", StaticFiles(directory="static"))</code></li>
+  </ul></div>
+</div>

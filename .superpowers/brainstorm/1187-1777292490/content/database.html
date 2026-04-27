@@ -1,0 +1,62 @@
+<h2>数据库设计 — SQLite</h2>
+<p class="subtitle">3 张表，结构精简</p>
+
+<table style="width:100%; border-collapse: collapse; margin-top: 16px;">
+  <tr style="background: #f0f0f0;">
+    <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">表名</th>
+    <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">字段</th>
+    <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">说明</th>
+  </tr>
+
+  <tr>
+    <td style="padding: 10px; border: 1px solid #ddd; vertical-align: top; font-weight: bold;">posts<br><span style="color:#999; font-weight:normal;">帖子草稿/内容</span></td>
+    <td style="padding: 10px; border: 1px solid #ddd; font-family: monospace; font-size: 13px;">
+      id (INTEGER PK)<br>
+      title (TEXT) — 标题<br>
+      body (TEXT) — 正文<br>
+      images (TEXT) — JSON 数组存图片路径<br>
+      status (TEXT) — draft/scheduled/published/failed<br>
+      scheduled_at (TEXT) — 计划发布时间<br>
+      published_at (TEXT) — 实际发布时间<br>
+      error_msg (TEXT) — 失败原因<br>
+      created_at (TEXT)<br>
+      updated_at (TEXT)
+    </td>
+    <td style="padding: 10px; border: 1px solid #ddd;">一条帖子 = 一行记录<br>图片路径用 JSON 存</td>
+  </tr>
+
+  <tr>
+    <td style="padding: 10px; border: 1px solid #ddd; vertical-align: top; font-weight: bold;">schedules<br><span style="color:#999; font-weight:normal;">调度任务</span></td>
+    <td style="padding: 10px; border: 1px solid #ddd; font-family: monospace; font-size: 13px;">
+      id (INTEGER PK)<br>
+      post_id (INTEGER FK → posts.id)<br>
+      run_at (TEXT) — 执行时间<br>
+      status (TEXT) — pending/done/failed<br>
+      job_id (TEXT) — APScheduler job ID
+    </td>
+    <td style="padding: 10px; border: 1px solid #ddd;">每个定时任务一行<br>关联到对应的帖子</td>
+  </tr>
+
+  <tr>
+    <td style="padding: 10px; border: 1px solid #ddd; vertical-align: top; font-weight: bold;">publish_logs<br><span style="color:#999; font-weight:normal;">发布日志</span></td>
+    <td style="padding: 10px; border: 1px solid #ddd; font-family: monospace; font-size: 13px;">
+      id (INTEGER PK)<br>
+      post_id (INTEGER FK → posts.id)<br>
+      action (TEXT) — scheduled/manual/retry<br>
+      result (TEXT) — success/failed<br>
+      message (TEXT) — 详细信息<br>
+      created_at (TEXT)
+    </td>
+    <td style="padding: 10px; border: 1px solid #ddd;">每次发布尝试都记录<br>用于追溯和重试</td>
+  </tr>
+</table>
+
+<h3 style="margin-top: 24px;">为什么这样设计</h3>
+<div class="pros-cons">
+  <div class="pros"><h4>决策</h4><ul>
+    <li>posts.images 用 JSON 文本存路径数组，不需要额外的图片表</li>
+    <li>schedules 独立成表，方便查看/修改调度队列</li>
+    <li>publish_logs 独立成表，保留完整的发布历史</li>
+    <li>全部 TEXT 存时间，SQLite 没有 datetime 类型</li>
+  </ul></div>
+</div>

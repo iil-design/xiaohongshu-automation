@@ -1,0 +1,78 @@
+<h2>Agent 调度流程</h2>
+<p class="subtitle">用户创建帖子到自动发布，全链路</p>
+
+<div style="background: #1a1a2e; color: #e0e0e0; padding: 24px; border-radius: 12px; font-family: Consolas,monospace; font-size: 13px; line-height: 2; margin-top: 16px;">
+
+<div style="display:flex;align-items:center;gap:12px;">
+  <span style="background:#0f3460;padding:4px 12px;border-radius:4px;">👤 用户</span>
+  <span style="color:#ccc;">→ 上传图片 + 填写文案 + 设时间</span>
+</div>
+<div style="color:#666;margin-left:32px;">│</div>
+<div style="display:flex;align-items:center;gap:12px;">
+  <span style="background:#16213e;padding:4px 12px;border-radius:4px;">🌐 FastAPI</span>
+  <span style="color:#ccc;">→ POST /posts/create → 写入 SQLite</span>
+</div>
+<div style="color:#666;margin-left:32px;">│</div>
+<div style="display:flex;align-items:center;gap:12px;">
+  <span style="background:#533483;padding:4px 12px;border-radius:4px;">🤖 Agent</span>
+  <span style="color:#ccc;">→ 检测新帖子 → 组装内容 → 注册定时任务</span>
+</div>
+<div style="color:#666;margin-left:32px;">│</div>
+<div style="display:flex;align-items:center;gap:12px;">
+  <span style="background:#e94560;padding:4px 12px;border-radius:4px;">⏰ APScheduler</span>
+  <span style="color:#ccc;">→ 到时间触发 → 调用发布接口</span>
+</div>
+<div style="color:#666;margin-left:32px;">│</div>
+<div style="display:flex;align-items:center;gap:12px;">
+  <span style="background:#0f3460;padding:4px 12px;border-radius:4px;">📤 Publisher</span>
+  <span style="color:#ccc;">→ 执行发布 → 写日志 → 更新帖子状态</span>
+</div>
+<div style="color:#666;margin-left:32px;">│</div>
+<div style="display:flex;align-items:center;gap:12px;">
+  <span style="color:#4ecdc4;">✓ 发布完成 → posts.status = published</span>
+</div>
+
+</div>
+
+<h3 style="margin-top: 24px;">Agent 具体做了什么</h3>
+
+<div class="section">
+  <p>Agent 不是一个独立的"思考者"，而是<strong>内容 + 调度的编排器</strong>，具体职责：</p>
+</div>
+
+<table style="width:100%; border-collapse: collapse;">
+  <tr style="background: #f0f0f0;">
+    <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">步骤</th>
+    <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">动作</th>
+    <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">输入 → 输出</th>
+  </tr>
+  <tr>
+    <td style="padding: 10px; border: 1px solid #ddd;">1. 接收</td>
+    <td style="padding: 10px; border: 1px solid #ddd;">用户创建帖子</td>
+    <td style="padding: 10px; border: 1px solid #ddd;">图片路径 + 标题 + 正文 + 时间 → 组装为 Post 对象</td>
+  </tr>
+  <tr>
+    <td style="padding: 10px; border: 1px solid #ddd;">2. 调度</td>
+    <td style="padding: 10px; border: 1px solid #ddd;">注册定时任务</td>
+    <td style="padding: 10px; border: 1px solid #ddd;">Post → APScheduler.add_job()</td>
+  </tr>
+  <tr>
+    <td style="padding: 10px; border: 1px solid #ddd;">3. 触发</td>
+    <td style="padding: 10px; border: 1px solid #ddd;">到时间执行</td>
+    <td style="padding: 10px; border: 1px solid #ddd;">取出 Post → 调用 Publisher</td>
+  </tr>
+  <tr>
+    <td style="padding: 10px; border: 1px solid #ddd;">4. 记录</td>
+    <td style="padding: 10px; border: 1px solid #ddd;">写日志 + 更新状态</td>
+    <td style="padding: 10px; border: 1px solid #ddd;">结果 → publish_logs + posts.status</td>
+  </tr>
+</table>
+
+<div class="pros-cons" style="margin-top: 16px;">
+  <div class="pros"><h4>关键点</h4><ul>
+    <li>Agent 不写内容，只编排流程</li>
+    <li>APScheduler 负责定时触发，Agent 负责调度决策</li>
+    <li>Publisher 是独立接口，换发布方式不动 Agent</li>
+    <li>服务重启后，APScheduler 从数据库恢复待执行任务</li>
+  </ul></div>
+</div>

@@ -1,0 +1,67 @@
+<h2>前端页面结构</h2>
+<p class="subtitle">个人使用，3 个核心页面</p>
+
+<div class="mockup">
+  <div class="mockup-header">页面 1 — 帖子管理（首页）</div>
+  <div class="mockup-body">
+    <div class="mock-nav">📕 小红书发帖助手    |    帖子管理    |    发布历史</div>
+    <div style="display: flex; gap: 16px; margin-top: 16px;">
+      <div style="flex: 1;">
+        <div class="label">草稿箱</div>
+        <div class="placeholder" style="margin-bottom: 8px;">📷 夏日穿搭合集<br><span style="color:#666;">明天 10:00 · 6张图</span></div>
+        <div class="placeholder" style="margin-bottom: 8px;">📷 周末探店笔记<br><span style="color:#666;">草稿 · 3张图</span></div>
+        <div class="placeholder" style="margin-bottom: 8px;">📷 护肤心得<br><span style="color:#666;">今天 14:00 · 已发布</span></div>
+      </div>
+      <div style="flex: 1;">
+        <div class="label">快捷操作</div>
+        <button class="mock-button" style="width:100%;margin-bottom:8px;">+ 新建帖子</button>
+        <button class="mock-button" style="width:100%;">▶ 立即发布选中</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="mockup">
+  <div class="mockup-header">页面 2 — 新建/编辑帖子</div>
+  <div class="mockup-body">
+    <div style="display: flex; gap: 16px;">
+      <div style="flex: 1;">
+        <div class="label">上传图片</div>
+        <div class="placeholder" style="height: 120px; display: flex; align-items: center; justify-content: center;">
+          🖼 点击或拖拽上传（最多 9 张）
+        </div>
+      </div>
+      <div style="flex: 1;">
+        <div class="label">标题</div>
+        <input class="mock-input" style="width:100%;" placeholder="输入帖子标题...">
+        <div class="label" style="margin-top: 12px;">正文</div>
+        <textarea class="mock-input" style="width:100%;height:80px;" placeholder="输入帖子正文..."></textarea>
+        <div class="label" style="margin-top: 12px;">⏰ 发布时间</div>
+        <input class="mock-input" style="width:100%;" placeholder="2026-04-28 10:00" type="datetime-local">
+      </div>
+    </div>
+    <div style="margin-top: 16px; display: flex; gap: 8px;">
+      <button class="mock-button">保存草稿</button>
+      <button class="mock-button">定时发布</button>
+    </div>
+  </div>
+</div>
+
+<div class="mockup">
+  <div class="mockup-header">页面 3 — 发布历史</div>
+  <div class="mockup-body">
+    <div class="label">已发布 / 待发布 / 失败记录</div>
+    <div class="placeholder" style="margin-bottom: 8px;">✅ 护肤心得 — 04-27 14:00 发布成功</div>
+    <div class="placeholder" style="margin-bottom: 8px;">⏳ 穿搭合集 — 04-28 10:00 等待发布</div>
+    <div class="placeholder" style="margin-bottom: 8px;">❌ 美食分享 — 04-26 09:00 发布失败（重试）</div>
+  </div>
+</div>
+
+<h3 style="margin-top: 24px;">设计要点</h3>
+<div class="pros-cons">
+  <div class="pros"><h4>理念</h4><ul>
+    <li>3 个页面，结构扁平，不埋深层菜单</li>
+    <li>首页就是工作台，草稿箱 + 操作区一目了然</li>
+    <li>Tailwind 轻量样式，加载快</li>
+  </ul></div>
+</div>
