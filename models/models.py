@@ -1,5 +1,4 @@
 import json
-import os
 from datetime import datetime
 
 from sqlalchemy import create_engine, Column, Integer, String, Text, ForeignKey
@@ -24,7 +23,12 @@ class Post(Base):
     published_at = Column(String(30), nullable=True)
     error_msg = Column(Text, nullable=True)
     created_at = Column(String(30), nullable=False, default=lambda: datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-    updated_at = Column(String(30), nullable=False, default=lambda: datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    updated_at = Column(
+        String(30),
+        nullable=False,
+        default=lambda: datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        onupdate=lambda: datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    )
 
     schedules = relationship("Schedule", back_populates="post", cascade="all, delete-orphan")
     logs = relationship("PublishLog", back_populates="post", cascade="all, delete-orphan")
