@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-bold text-gray-800">帖子管理</h1>
+  <a href="/editor" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 text-sm font-medium">
+    + 新建帖子
+  </a>
+</div>
+
+{% if posts %}
+<ul class="space-y-3">
+  {% for post in posts %}
+  <li class="bg-white rounded-lg shadow-sm border p-4 flex items-start gap-4">
+    <div class="w-20 h-20 rounded-md bg-gray-100 flex-shrink-0 overflow-hidden">
+      {% if post.images and post.images|length > 0 %}
+      <img src="{{ post.images[0] }}" class="w-full h-full object-cover" alt="">
+      {% else %}
+      <div class="w-full h-full flex items-center justify-center text-gray-300 text-2xl">📷</div>
+      {% endif %}
+    </div>
+
+    <div class="flex-1 min-w-0">
+      <h3 class="font-medium text-gray-800 truncate">{{ post.title or '(无标题)' }}</h3>
+      <p class="text-sm text-gray-500 mt-1 truncate">{{ post.body or '(无正文)' }}</p>
+      <div class="flex items-center gap-3 mt-2 text-xs">
+        {% if post.status == 'draft' %}
+        <span class="bg-gray-100 text-gray-600 px-2 py-0.5 rounded">草稿</span>
+        {% elif post.status == 'scheduled' %}
+        <span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded">⏳ {{ post.scheduled_at }}</span>
+        {% elif post.status == 'published' %}
+        <span class="bg-green-100 text-green-700 px-2 py-0.5 rounded">✅ {{ post.published_at }}</span>
+        {% elif post.status == 'failed' %}
+        <span class="bg-red-100 text-red-700 px-2 py-0.5 rounded">❌ 失败</span>
+        {% endif %}
+
+        {% if post.images %}
+        <span class="text-gray-400">{{ post.images|length }} 张图</span>
+        {% endif %}
+      </div>
+      {% if post.error_msg %}
+      <p class="text-xs text-red-500 mt-1">{{ post.error_msg }}</p>
+      {% endif %}
+    </div>
+
+    <div class="flex items-center gap-2 flex-shrink-0">
+      {% if post.status == 'draft' %}
+      <form action="/editor" method="get" class="inline">
+        <input type="hidden" name="post_id" value="{{ post.id }}">
+        <button class="text-sm text-gray-500 hover:text-gray-700 px-2 py-1">编辑</button>
+      </form>
+      <form action="/posts/publish_now" method="post" class="inline" onsubmit="return confirm('立即发布这篇帖子？')">
+        <input type="hidden" name="post_id" value="{{ post.id }}">
+        <button class="text-sm text-red-500 hover:text-red-700 px-2 py-1">▶ 发布</button>
+      </form>
+      {% elif post.status == 'failed' %}
+      <form action="/posts/retry" method="post" class="inline" onsubmit="return confirm('重试发布？')">
+        <input type="hidden" name="post_id" value="{{ post.id }}">
+        <button class="text-sm text-orange-500 hover:text-orange-700 px-2 py-1">↻ 重试</button>
+      </form>
+      {% endif %}
+      <form action="/posts/delete" method="post" class="inline" onsubmit="return confirm('确定删除？')">
+        <input type="hidden" name="post_id" value="{{ post.id }}">
+        <button class="text-sm text-gray-400 hover:text-red-500 px-2 py-1">删除</button>
+      </form>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<div class="text-center py-20 text-gray-400">
+  <p class="text-4xl mb-4">📭</p>
+  <p>还没有帖子，点击上方按钮创建第一个</p>
+</div>
+{% endif %}
+
+{% endblock %}

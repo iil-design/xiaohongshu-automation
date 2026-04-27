@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1 class="text-2xl font-bold text-gray-800 mb-6">发布历史</h1>
+
+{% if logs %}
+<div class="bg-white rounded-lg shadow-sm border overflow-hidden">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="bg-gray-50 text-left text-gray-600">
+        <th class="px-4 py-3 font-medium">帖子</th>
+        <th class="px-4 py-3 font-medium">操作</th>
+        <th class="px-4 py-3 font-medium">结果</th>
+        <th class="px-4 py-3 font-medium">时间</th>
+        <th class="px-4 py-3 font-medium">详情</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y">
+      {% for log in logs %}
+      <tr>
+        <td class="px-4 py-3 text-gray-800">{{ log.post_title }}</td>
+        <td class="px-4 py-3">
+          {% if log.action == 'scheduled' %}
+          <span class="text-blue-600">定时发布</span>
+          {% elif log.action == 'manual' %}
+          <span class="text-green-600">手动发布</span>
+          {% else %}
+          <span class="text-orange-600">重试</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3">
+          {% if log.result == 'success' %}
+          <span class="text-green-600">✅ 成功</span>
+          {% else %}
+          <span class="text-red-500">❌ 失败</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3 text-gray-500">{{ log.created_at }}</td>
+        <td class="px-4 py-3 text-gray-500 text-xs">{{ log.message or '-' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="text-center py-20 text-gray-400">
+  <p class="text-4xl mb-4">📋</p>
+  <p>暂无发布记录</p>
+</div>
+{% endif %}
+
+{% endblock %}
