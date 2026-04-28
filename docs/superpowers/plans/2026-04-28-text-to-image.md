@@ -415,7 +415,7 @@ git commit -m "feat: add GET /api/ai/image-status endpoint for polling"
 **Files:**
 - Modify: `web/routes.py:359-408`
 
-- [ ] **Step 1: Update image priority in library_import**
+- [ ] **Step 1: Update image logic in library_import**
 
 In `library_import()`, change line 378 from:
 
@@ -426,8 +426,7 @@ In `library_import()`, change line 378 from:
 To:
 
 ```python
-                gen_images = processed.get_images()
-                post.set_images(gen_images if gen_images else item.get_images())
+                post.set_images(processed.get_images())
 ```
 
 The full block (lines 369-387) should now read:
@@ -442,8 +441,7 @@ The full block (lines 369-387) should now read:
                     body=processed.body,
                     status="draft",
                 )
-                gen_images = processed.get_images()
-                post.set_images(gen_images if gen_images else item.get_images())
+                post.set_images(processed.get_images())
                 post.set_tags(processed.get_tags())
             else:
                 post = Post(
