@@ -1,0 +1,364 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-bold text-gray-800">素材库 · AI 创作</h1>
+  <div class="flex items-center gap-3">
+    <span class="text-sm text-gray-400">{{ items|length }} 条素材</span>
+    <div class="flex gap-2 border-l pl-3">
+      <button onclick="runScraper('github')" id="btn-github"
+              class="text-sm px-3 py-1.5 bg-gray-700 text-white rounded hover:bg-gray-800 transition disabled:opacity-50">
+        🌙 GitHub Trending
+      </button>
+      <button onclick="runScraper('douchacha')" id="btn-douchacha"
+              class="text-sm px-3 py-1.5 bg-purple-500 text-white rounded hover:bg-purple-600 transition disabled:opacity-50">
+        🎯 抖查查热门
+      </button>
+    </div>
+  </div>
+</div>
+
+{% if items %}
+<div class="flex gap-6">
+  <!-- 左侧：素材列表 -->
+  <div class="w-1/3 shrink-0">
+    <div class="bg-white rounded-lg shadow-sm border overflow-hidden">
+      <div class="px-4 py-3 border-b bg-gray-50">
+        <input type="text" placeholder="搜索素材..." id="search-input"
+               class="w-full text-sm border rounded px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-red-300"
+               oninput="filterItems()">
+      </div>
+      <div class="divide-y max-h-[600px] overflow-y-auto" id="item-list">
+        {% for item in items %}
+        <div class="item-row px-4 py-3 cursor-pointer hover:bg-red-50 transition"
+             data-id="{{ item.id }}" data-title="{{ item.title or '(无标题)' }}"
+             data-body="{{ item.body | replace('"', '&quot;') | replace('\n', '\\n') }}"
+             data-source="{{ item.source_plat }}" data-imported="{{ 'true' if item.imported else 'false' }}"
+             data-imported-to="{{ item.imported_to or '' }}">
+          <p class="text-sm font-medium text-gray-800 truncate">{{ item.title or '(无标题)' }}</p>
+          <div class="flex items-center gap-2 mt-1">
+            <span class="text-xs bg-gray-100 text-gray-500 px-1.5 rounded">{{ item.source_plat }}</span>
+            <span class="text-xs text-gray-400">{{ item.created_at[:10] }}</span>
+            {% if item.imported %}
+            <span class="text-xs text-green-500">已导入</span>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- 右侧：详情 + AI工作流 -->
+  <div class="flex-1">
+    <div class="bg-white rounded-lg shadow-sm border p-6 min-h-[600px]" id="main-panel">
+      <div class="text-center py-20 text-gray-400" id="placeholder">
+        <p class="text-4xl mb-4">👈</p>
+        <p>选择左侧素材，然后点击 AI 处理</p>
+      </div>
+
+      <div id="workflow" class="hidden">
+        <!-- 原文预览 -->
+        <div class="mb-6">
+          <h3 class="text-sm font-semibold text-gray-500 uppercase mb-2">📄 原始内容</h3>
+          <div class="bg-gray-50 rounded p-4 max-h-48 overflow-y-auto">
+            <p class="text-sm text-gray-700 font-medium mb-2" id="source-title"></p>
+            <p class="text-sm text-gray-600 whitespace-pre-wrap" id="source-body"></p>
+          </div>
+        </div>
+
+        <!-- 操作按钮区域 -->
+        <div class="flex items-center gap-3 mb-6">
+          <button onclick="runAI()" id="btn-run"
+                  class="px-5 py-2 bg-red-500 text-white text-sm font-medium rounded hover:bg-red-600 transition disabled:opacity-50">
+            🤖 AI 智能处理
+          </button>
+          <span id="status-msg" class="text-sm text-gray-400"></span>
+        </div>
+
+        <!-- AI 输出结果 -->
+        <div id="ai-output" class="hidden">
+          <h3 class="text-sm font-semibold text-gray-500 uppercase mb-3">✨ AI 处理结果</h3>
+
+          <!-- 标题 -->
+          <div class="mb-4">
+            <label class="text-xs text-gray-400 font-medium">标题</label>
+            <input type="text" id="out-title"
+                   class="w-full border rounded px-3 py-2 text-sm font-medium text-gray-800 mt-1"
+                   maxlength="20" placeholder="AI 生成的标题">
+          </div>
+
+          <!-- 正文 -->
+          <div class="mb-4">
+            <label class="text-xs text-gray-400 font-medium">正文</label>
+            <textarea id="out-body" rows="10"
+                      class="w-full border rounded px-3 py-2 text-sm text-gray-700 mt-1 resize-y"
+                      placeholder="AI 生成的正文"></textarea>
+          </div>
+
+          <!-- 标签 -->
+          <div class="mb-4">
+            <label class="text-xs text-gray-400 font-medium">标签</label>
+            <div class="flex flex-wrap gap-1 mt-1" id="out-tags"></div>
+          </div>
+
+          <!-- 文生图提示词 + 生成状态 -->
+          <div class="mb-4">
+            <label class="text-xs text-gray-400 font-medium">🎨 文生图提示词 & 生成状态</label>
+            <div class="space-y-2 mt-1" id="out-image-prompts"></div>
+          </div>
+
+          <!-- 操作 -->
+          <div class="flex items-center gap-3 pt-4 border-t">
+            <button onclick="importResult()" id="btn-import"
+                    class="px-5 py-2 bg-green-500 text-white text-sm font-medium rounded hover:bg-green-600 transition">
+              📥 导入为帖子草稿
+            </button>
+            <button onclick="runAI()"
+                    class="px-3 py-2 text-sm text-gray-500 hover:text-gray-700 transition">
+              🔄 重新生成
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="text-center py-20 text-gray-400">
+  <p class="text-4xl mb-4">📦</p>
+  <p>素材库为空</p>
+  <p class="text-sm mt-2">运行爬虫脚本导入内容，或等待自动抓取</p>
+</div>
+{% endif %}
+
+<script>
+let selectedId = null;
+let selectedTitle = '';
+let selectedBody = '';
+let isImported = false;
+let importedTo = '';
+let processedId = 0;
+
+async function runScraper(type) {
+  const endpoints = {
+    'github': '/api/scrapers/github-trending',
+    'douchacha': '/api/scrapers/douchacha'
+  };
+  const btnIds = {
+    'github': 'btn-github',
+    'douchacha': 'btn-douchacha'
+  };
+  const labels = {
+    'github': '🌙 GitHub Trending',
+    'douchacha': '🎯 抖查查热门'
+  };
+
+  const btn = document.getElementById(btnIds[type]);
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '⏳ 运行中...';
+
+  try {
+    const resp = await fetch(endpoints[type], { method: 'POST' });
+    if (!resp.ok) {
+      alert(`❌ 启动失败\nHTTP ${resp.status}: ${resp.statusText}`);
+      btn.disabled = false;
+      btn.textContent = originalText;
+      return;
+    }
+    const data = await resp.json();
+
+    if (data.success) {
+      alert(`✅ ${labels[type]} 已启动\n${data.message || '爬虫已启动，后台运行中...'}\n\n数据将在后台抓取，完成后自动刷新页面。`);
+      // 每 3 秒轮询一次，看素材库是否有新数据
+      const checkInterval = setInterval(() => {
+        fetch('/library').then(r => r.text()).then(html => {
+          const parser = new DOMParser();
+          const newDoc = parser.parseFromString(html, 'text/html');
+          const newCount = newDoc.querySelector('[class*="text-gray-400"]')?.textContent;
+          const currentCount = document.body.innerText.match(/(\d+)\s*条素材/)?.[1];
+          if (newCount && newCount !== currentCount) {
+            clearInterval(checkInterval);
+            location.reload();
+          }
+        });
+      }, 3000);
+
+      // 最多轮询 5 分钟
+      setTimeout(() => clearInterval(checkInterval), 300000);
+    } else {
+      alert(`❌ 启动失败\n${data.message || data.error || '未知错误'}`);
+    }
+  } catch (e) {
+    alert(`❌ 请求失败\n${e.message}`);
+  }
+
+  btn.disabled = false;
+  btn.textContent = originalText;
+}
+
+// 列表点击选中
+document.querySelectorAll('.item-row').forEach(row => {
+  row.addEventListener('click', function() {
+    document.querySelectorAll('.item-row').forEach(r => r.classList.remove('bg-red-50', 'border-l-2', 'border-l-red-400'));
+    this.classList.add('bg-red-50', 'border-l-2', 'border-l-red-400');
+    selectedId = this.dataset.id;
+    selectedTitle = this.dataset.title;
+    selectedBody = this.dataset.body.replace(/\\n/g, '\n');
+    isImported = this.dataset.imported === 'true';
+    importedTo = this.dataset.imported_to || '';
+    document.getElementById('placeholder').classList.add('hidden');
+    document.getElementById('workflow').classList.remove('hidden');
+    document.getElementById('source-title').textContent = selectedTitle;
+    document.getElementById('source-body').textContent = selectedBody;
+    document.getElementById('ai-output').classList.add('hidden');
+    document.getElementById('btn-run').disabled = false;
+    document.getElementById('btn-run').style.display = '';
+    document.getElementById('btn-import').style.display = isImported ? '' : 'none';
+  });
+});
+
+function filterItems() {
+  const q = (document.getElementById('search-input').value || '').toLowerCase();
+  document.querySelectorAll('.item-row').forEach(row => {
+    const t = (row.dataset.title || '').toLowerCase();
+    const b = (row.dataset.body || '').toLowerCase();
+    row.classList.toggle('hidden', !t.includes(q) && !b.includes(q));
+  });
+}
+
+async function runAI() {
+  if (!selectedId) return alert('请先选择一条素材');
+  const btn = document.getElementById('btn-run');
+  const status = document.getElementById('status-msg');
+  btn.disabled = true;
+  btn.textContent = '⏳ 处理中...';
+  status.textContent = '正在调用 AI 模型，可能需要 30-60 秒...';
+
+  try {
+    const formData = new FormData();
+    formData.append('content_id', selectedId);
+    const resp = await fetch('/api/ai/process', { method: 'POST', body: formData });
+    const data = await resp.json();
+
+    if (!data.success || !data.result) {
+      status.textContent = '❌ ' + (data.error || '处理失败');
+      btn.disabled = false;
+      btn.textContent = '🤖 AI 智能处理';
+      return;
+    }
+
+    processedId = data.processed_id || 0;
+    const result = data.result;
+
+    // 填充结果
+    document.getElementById('out-title').value = result.title || '';
+    document.getElementById('out-body').value = result.body || '';
+
+    // 标签
+    const tagsDiv = document.getElementById('out-tags');
+    tagsDiv.innerHTML = '';
+    (result.tags || []).forEach(t => {
+      const span = document.createElement('span');
+      span.className = 'text-xs bg-red-50 text-red-500 px-2 py-1 rounded';
+      span.textContent = '#' + t;
+      tagsDiv.appendChild(span);
+    });
+
+    // 文生图提示词 + 生成状态
+    const promptsDiv = document.getElementById('out-image-prompts');
+    promptsDiv.innerHTML = '';
+    (result.image_prompts || []).forEach((p, i) => {
+      const div = document.createElement('div');
+      div.className = 'bg-purple-50 rounded p-3';
+      div.id = 'img-prompt-' + i;
+      div.innerHTML =
+        '<div class="flex items-start gap-2">' +
+        '<span class="text-purple-400 font-bold shrink-0">' + (i+1) + '.</span>' +
+        '<div class="flex-1 min-w-0">' +
+        '<p class="text-sm text-purple-800">' + p + '</p>' +
+        '<div class="mt-2 flex items-center gap-2" id="img-status-' + i + '">' +
+        '<span class="inline-block w-4 h-4 border-2 border-purple-300 border-t-purple-500 rounded-full animate-spin"></span>' +
+        '<span class="text-xs text-purple-500">等待生成...</span>' +
+        '</div>' +
+        '</div>' +
+        '</div>';
+      promptsDiv.appendChild(div);
+    });
+
+    // Start polling image status if we have a processed_id
+    if (processedId && (result.image_prompts || []).length > 0) {
+      startImagePolling(processedId);
+    }
+
+    document.getElementById('ai-output').classList.remove('hidden');
+    document.getElementById('btn-import').style.display = '';
+    status.textContent = '✅ 处理完成';
+  } catch (e) {
+    status.textContent = '❌ 请求失败: ' + e.message;
+  }
+  btn.disabled = false;
+  btn.textContent = '🤖 AI 智能处理';
+}
+
+async function importResult() {
+  if (!selectedId) return;
+  const title = document.getElementById('out-title').value || selectedTitle;
+  const body = document.getElementById('out-body').value || selectedBody;
+  if (!title || !body) return alert('标题和正文不能为空');
+
+  // 通过 /library/import 导入，传递 processed_id
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = '/library/import';
+  form.innerHTML = '<input type="hidden" name="content_id" value="' + selectedId + '">'
+    + '<input type="hidden" name="processed_id" value="' + processedId + '">';
+  document.body.appendChild(form);
+  form.submit();
+}
+
+let imagePollTimer = null;
+
+function startImagePolling(pid) {
+  if (imagePollTimer) clearInterval(imagePollTimer);
+
+  imagePollTimer = setInterval(async () => {
+    try {
+      const resp = await fetch('/api/ai/image-status?processed_id=' + pid);
+      const data = await resp.json();
+      if (!data.prompts) return;
+
+      let allDone = true;
+
+      data.prompts.forEach(p => {
+        const statusEl = document.getElementById('img-status-' + p.index);
+        if (!statusEl) return;
+
+        if (p.status === 'done') {
+          statusEl.innerHTML =
+            '<img src="' + p.url + '" class="w-32 h-32 object-cover rounded border" alt="">';
+        } else if (p.status === 'failed') {
+          statusEl.innerHTML =
+            '<span class="text-xs text-red-500">❌ ' + (p.error || '生成失败') + '</span>';
+          allDone = false;
+        } else {
+          statusEl.innerHTML =
+            '<span class="inline-block w-4 h-4 border-2 border-purple-300 border-t-purple-500 rounded-full animate-spin"></span>' +
+            '<span class="text-xs text-purple-500">' + (p.status === 'generating' ? '生成中...' : '等待中...') + '</span>';
+          allDone = false;
+        }
+      });
+
+      if (allDone) {
+        clearInterval(imagePollTimer);
+        imagePollTimer = null;
+      }
+    } catch (e) {
+      // Silently retry on next interval
+    }
+  }, 3000);
+}
+</script>
+
+{% endblock %}
