@@ -329,7 +329,7 @@ function startImagePolling(pid) {
       const data = await resp.json();
       if (!data.prompts) return;
 
-      let allDone = true;
+      let allResolved = true;
 
       data.prompts.forEach(p => {
         const statusEl = document.getElementById('img-status-' + p.index);
@@ -341,16 +341,15 @@ function startImagePolling(pid) {
         } else if (p.status === 'failed') {
           statusEl.innerHTML =
             '<span class="text-xs text-red-500">❌ ' + (p.error || '生成失败') + '</span>';
-          allDone = false;
         } else {
           statusEl.innerHTML =
             '<span class="inline-block w-4 h-4 border-2 border-purple-300 border-t-purple-500 rounded-full animate-spin"></span>' +
             '<span class="text-xs text-purple-500">' + (p.status === 'generating' ? '生成中...' : '等待中...') + '</span>';
-          allDone = false;
+          allResolved = false;
         }
       });
 
-      if (allDone) {
+      if (allResolved) {
         clearInterval(imagePollTimer);
         imagePollTimer = null;
       }
