@@ -376,7 +376,7 @@ def library_import(request: Request, content_id: int = Form(...), processed_id: 
                     body=processed.body,
                     status="draft",
                 )
-                post.set_images(item.get_images())
+                post.set_images(processed.get_images())
                 post.set_tags(processed.get_tags())
             else:
                 post = Post(
