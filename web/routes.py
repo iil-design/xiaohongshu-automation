@@ -1,13 +1,19 @@
 import os
 import uuid
+import sys
+import threading
 from datetime import datetime
 
 from fastapi import APIRouter, Request, UploadFile, File, Form
 from fastapi.responses import RedirectResponse
 
+from fastapi.responses import JSONResponse
 from models.models import SessionLocal, Post, PublishLog
+from models.content import SessionLocal as ContentSessionLocal, Content
 from scheduler.scheduler import add_schedule, remove_schedule
 from agent.poster_agent import review_content
+from agent.image_generator import generate_images
+from publisher.publisher import get_publisher
 from config import UPLOAD_DIR, MAX_IMAGES, MAX_IMAGE_SIZE_MB
 
 router = APIRouter()
@@ -46,6 +52,7 @@ async def create_post(
     request: Request,
     title: str = Form(default=""),
     body: str = Form(default=""),
+    tags: str = Form(default=""),
     scheduled_at: str = Form(default=""),
     action: str = Form(default="draft"),
     images: list[UploadFile] = File(default=[]),
@@ -86,6 +93,9 @@ async def create_post(
             status=status,
         )
         post.set_images(image_paths)
+        # 解析标签：逗号分隔
+        tag_list = [t.strip() for t in tags.replace("，", ",").split(",") if t.strip()]
+        post.set_tags(tag_list)
         db.add(post)
         db.commit()
         db.refresh(post)
@@ -224,3 +234,284 @@ def history(request: Request):
         })
     finally:
         db.close()
+
+
+@router.get("/api/login-status")
+def get_login_status():
+    try:
+        pub = get_publisher()
+        is_logged_in = pub._get_client().check_login()
+        return JSONResponse({
+            "logged_in": is_logged_in,
+            "message": "已登录" if is_logged_in else "未登录",
+        })
+    except Exception as e:
+        return JSONResponse({
+            "logged_in": False,
+            "message": f"检查登录状态失败: {str(e)}",
+        })
+
+
+@router.post("/api/delete-cookies")
+def delete_cookies_endpoint():
+    try:
+        pub = get_publisher()
+        result = pub._get_client().delete_cookies()
+        return JSONResponse(result)
+    except Exception as e:
+        return JSONResponse({
+            "success": False,
+            "message": f"调用失败: {str(e)}"
+        })
+
+
+@router.post("/api/login")
+def login_endpoint():
+    """获取登录二维码（MCP扫码登录）"""
+    try:
+        pub = get_publisher()
+        result = pub._get_client().login()
+        return JSONResponse(result)
+    except Exception as e:
+        return JSONResponse({
+            "success": False,
+            "message": f"获取二维码失败: {str(e)}"
+        })
+
+
+@router.post("/api/scrapers/github-trending")
+def run_github_trending_scraper():
+    """执行 GitHub Trending 爬虫脚本"""
+    import subprocess
+
+    def run_scraper():
+        try:
+            script_path = os.path.join(os.path.dirname(__file__), "..", "内容脚本", "github_trending_rpa.py")
+            print(f"[GitHub Trending] 执行脚本: {script_path}")
+            result = subprocess.run(
+                [sys.executable, script_path],
+                capture_output=True,
+                encoding="utf-8", errors="replace",
+                timeout=600,
+                cwd=os.path.dirname(os.path.dirname(__file__))
+            )
+            print(f"[GitHub Trending] 返回码: {result.returncode}")
+            print(f"[GitHub Trending] stdout:\n{result.stdout}")
+            if result.stderr:
+                print(f"[GitHub Trending] stderr:\n{result.stderr}")
+        except Exception as e:
+            print(f"[Error] GitHub Trending 爬虫执行失败: {e}")
+
+    # 后台线程执行，避免阻塞 HTTP 响应
+    thread = threading.Thread(target=run_scraper, daemon=True)
+    thread.start()
+
+    return JSONResponse({
+        "success": True,
+        "message": "GitHub Trending 爬虫已启动，后台运行中..."
+    })
+
+
+@router.post("/api/scrapers/douchacha")
+def run_douchacha_scraper():
+    """执行抖查查爬虫脚本"""
+    import subprocess
+
+    def run_scraper():
+        try:
+            script_path = os.path.join(os.path.dirname(__file__), "..", "内容脚本", "scrape_douchacha.py")
+            print(f"[Douchacha] 执行脚本: {script_path}")
+            result = subprocess.run(
+                [sys.executable, script_path],
+                capture_output=True,
+                encoding="utf-8", errors="replace",
+                timeout=300,
+                cwd=os.path.dirname(os.path.dirname(__file__))
+            )
+            print(f"[Douchacha] 返回码: {result.returncode}")
+            print(f"[Douchacha] stdout:\n{result.stdout}")
+            if result.stderr:
+                print(f"[Douchacha] stderr:\n{result.stderr}")
+        except Exception as e:
+            print(f"[Error] Douchacha 爬虫执行失败: {e}")
+
+    # 后台线程执行
+    thread = threading.Thread(target=run_scraper, daemon=True)
+    thread.start()
+
+    return JSONResponse({
+        "success": True,
+        "message": "抖查查爬虫已启动，后台运行中..."
+    })
+
+
+@router.get("/library")
+def library(request: Request):
+    db = ContentSessionLocal()
+    try:
+        items = db.query(Content).order_by(Content.created_at.desc()).all()
+        return request.app.state.templates.TemplateResponse(request, "library.html", {
+            "items": [item.to_dict() for item in items],
+        })
+    finally:
+        db.close()
+
+
+@router.post("/library/import")
+def library_import(request: Request, content_id: int = Form(...), processed_id: int = Form(default=0)):
+    content_db = ContentSessionLocal()
+    post_db = SessionLocal()
+    try:
+        item = content_db.query(Content).filter(Content.id == content_id).first()
+        if not item:
+            return RedirectResponse(url="/library", status_code=303)
+
+        # 如果有 AI 加工结果，使用加工后的内容
+        if processed_id:
+            from models.content import ProcessedContent
+            processed = content_db.query(ProcessedContent).filter(ProcessedContent.id == processed_id).first()
+            if processed:
+                post = Post(
+                    title=processed.title,
+                    body=processed.body,
+                    status="draft",
+                )
+                post.set_images(item.get_images())
+                post.set_tags(processed.get_tags())
+            else:
+                post = Post(
+                    title=item.title,
+                    body=item.body,
+                    status="draft",
+                )
+                post.set_images(item.get_images())
+                post.set_tags(item.get_tags())
+        else:
+            post = Post(
+                title=item.title,
+                body=item.body,
+                status="draft",
+            )
+            post.set_images(item.get_images())
+            post.set_tags(item.get_tags())
+
+        post_db.add(post)
+        post_db.commit()
+        post_db.refresh(post)
+
+        item.imported = True
+        item.imported_to = post.id
+        content_db.commit()
+
+        return RedirectResponse(url=f"/editor?post_id={post.id}", status_code=303)
+    finally:
+        content_db.close()
+        post_db.close()
+
+
+# ==================== AI 创作 API ====================
+
+@router.get("/settings")
+def settings_page(request: Request):
+    from config import load_ai_settings
+    ai_settings = load_ai_settings()
+    return request.app.state.templates.TemplateResponse(request, "settings.html", {
+        "ai_settings": ai_settings,
+        "request": request,
+    })
+
+
+@router.post("/api/ai/process")
+def ai_process(content_id: int = Form(...)):
+    """对指定素材运行 AI agent，返回处理结果并自动保存到 processed_contents 表"""
+    from models.content import SessionLocal as ContentSessionLocal, Content, ProcessedContent
+    from agent.content_agent import process_content_json
+
+    db = ContentSessionLocal()
+    try:
+        item = db.query(Content).filter(Content.id == content_id).first()
+        if not item:
+            return JSONResponse({"success": False, "error": "素材不存在"}, status_code=404)
+
+        user_input = f"标题：{item.title}\n\n正文：\n{item.body}"
+        result = process_content_json(user_input)
+
+        if "error" in result:
+            return JSONResponse({
+                "success": False,
+                "source": {"id": item.id, "title": item.title},
+                "raw": result,
+            })
+
+        # 保存 AI 加工结果到 processed_contents 表
+        processed = ProcessedContent(
+            original_content_id=item.id,
+            title=result.get("title", ""),
+            body=result.get("body", ""),
+        )
+        processed.set_tags(result.get("tags", []))
+        processed.set_image_prompts(result.get("image_prompts", []))
+        db.add(processed)
+        db.commit()
+        db.refresh(processed)
+
+        image_prompts = result.get("image_prompts", [])
+        if image_prompts:
+            threading.Thread(
+                target=generate_images,
+                args=(processed.id, image_prompts),
+                daemon=True,
+            ).start()
+
+        return JSONResponse({
+            "success": True,
+            "source": {"id": item.id, "title": item.title},
+            "processed_id": processed.id,
+            "result": {
+                "title": result.get("title", ""),
+                "body": result.get("body", ""),
+                "tags": result.get("tags", []),
+                "image_prompts": result.get("image_prompts", []),
+            },
+            "raw": None,
+        })
+    except Exception as e:
+        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
+    finally:
+        db.close()
+
+
+@router.get("/api/ai/config")
+def get_ai_config():
+    """获取当前 AI 配置"""
+    from config import load_ai_settings
+    return JSONResponse(load_ai_settings())
+
+
+@router.post("/api/ai/save-config")
+async def save_ai_config(request: Request):
+    """保存 AI 配置"""
+    from config import save_ai_settings
+    data = await request.json()
+    save_ai_settings(data)
+    return JSONResponse({"success": True})
+
+
+@router.get("/api/ai/system-prompt")
+def get_system_prompt():
+    """获取系统提示词"""
+    from config import SYSTEM_PROMPT_FILE
+    if os.path.exists(SYSTEM_PROMPT_FILE):
+        with open(SYSTEM_PROMPT_FILE, "r", encoding="utf-8") as f:
+            return JSONResponse({"content": f.read()})
+    return JSONResponse({"content": ""})
+
+
+@router.post("/api/ai/save-system-prompt")
+async def save_system_prompt(request: Request):
+    """保存系统提示词"""
+    from config import SYSTEM_PROMPT_FILE
+    data = await request.json()
+    with open(SYSTEM_PROMPT_FILE, "w", encoding="utf-8") as f:
+        f.write(data.get("content", ""))
+    return JSONResponse({"success": True})
