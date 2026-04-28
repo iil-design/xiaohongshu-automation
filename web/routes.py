@@ -12,7 +12,7 @@ from models.models import SessionLocal, Post, PublishLog
 from models.content import SessionLocal as ContentSessionLocal, Content
 from scheduler.scheduler import add_schedule, remove_schedule
 from agent.poster_agent import review_content
-from agent.image_generator import generate_images
+from agent.image_generator import generate_images, get_status
 from publisher.publisher import get_publisher
 from config import UPLOAD_DIR, MAX_IMAGES, MAX_IMAGE_SIZE_MB
 
@@ -515,3 +515,24 @@ async def save_system_prompt(request: Request):
     with open(SYSTEM_PROMPT_FILE, "w", encoding="utf-8") as f:
         f.write(data.get("content", ""))
     return JSONResponse({"success": True})
+
+
+@router.get("/api/ai/image-status")
+def image_generation_status(processed_id: int = 0):
+    """查询指定 processed_id 的图片生成进度"""
+    if not processed_id:
+        return JSONResponse({"error": "missing processed_id"}, status_code=400)
+    data = get_status(processed_id)
+    if data is None:
+        # Check if the processed_id even exists
+        from models.content import SessionLocal as ContentSessionLocal, ProcessedContent
+        db = ContentSessionLocal()
+        try:
+            exists = db.query(ProcessedContent).filter(ProcessedContent.id == processed_id).first()
+        finally:
+            db.close()
+        if not exists:
+            return JSONResponse({"error": "processed_id not found"}, status_code=404)
+        # Exists but no status yet (edge case: thread hasn't started)
+        return JSONResponse({"processed_id": processed_id, "prompts": []})
+    return JSONResponse(data)
