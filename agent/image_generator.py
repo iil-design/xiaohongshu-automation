@@ -36,6 +36,25 @@ def _update_prompt(processed_id: int, index: int, updates: dict):
 def generate_images(processed_id: int, image_prompts: list[str]) -> None:
     """Background thread: generate images for each prompt, save to static/uploads/."""
 
+    try:
+        _generate_images_impl(processed_id, image_prompts)
+    except Exception as e:
+        print(f"[ImageGen] 线程崩溃 processed_id={processed_id}: {e}")
+        import traceback
+        traceback.print_exc()
+        with _lock:
+            entry = _status_cache.get(processed_id)
+            if entry:
+                for p in entry:
+                    if p["status"] not in ("done", "failed"):
+                        p["status"] = "failed"
+                        p["error"] = f"线程异常: {str(e)[:200]}"
+
+
+def _generate_images_impl(processed_id: int, image_prompts: list[str]) -> None:
+
+    print(f"[ImageGen] 开始生图 processed_id={processed_id}, prompts={len(image_prompts)}")
+
     # Initialize status cache
     with _lock:
         _status_cache[processed_id] = [
