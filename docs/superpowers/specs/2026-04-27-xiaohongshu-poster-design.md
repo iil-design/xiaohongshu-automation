@@ -119,7 +119,7 @@ class BasePublisher:
 {
   "provider":   "openai_compatible",
   "model_name": "qwen-coder-turbo-0919",
-  "api_key":    "sk-2779612cd26547fab22f55d641926d9f",
+  "api_key":    "从环境变量 DASHSCOPE_API_KEY 读取",
   "base_url":   "https://dashscope.aliyuncs.com/compatible-mode/v1",
   "stream":     false
 }

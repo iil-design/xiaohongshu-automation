@@ -1,0 +1,569 @@
+{% extends "base.html" %}
+{% block content %}
+
+<style>
+  :root {
+    --card-shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+    --card-hover-shadow: 0 4px 12px rgba(0,0,0,.08);
+  }
+  .card {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: var(--card-shadow);
+    border: 1px solid #f0f0f0;
+    transition: box-shadow .2s;
+  }
+  .card:hover { box-shadow: var(--card-hover-shadow); }
+  .agent-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600;
+  }
+  .agent-badge.active { background: #ecfdf5; color: #059669; }
+  .agent-badge.idle { background: #f3f4f6; color: #6b7280; }
+  .tab-btn {
+    padding: 8px 16px; font-size: 13px; font-weight: 500;
+    border-radius: 8px 8px 0 0; border: none; cursor: pointer;
+    color: #6b7280; background: transparent; transition: all .15s;
+  }
+  .tab-btn:hover { color: #374151; background: #f9fafb; }
+  .tab-btn.active { color: #dc2626; background: #fff; box-shadow: 0 -2px 0 #dc2626 inset; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  .form-label {
+    display: block; font-size: 12px; font-weight: 600; color: #6b7280;
+    text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px;
+  }
+  .form-input {
+    width: 100%; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px 12px;
+    font-size: 13px; transition: border-color .15s, box-shadow .15s;
+    background: #fafafa;
+  }
+  .form-input:focus {
+    outline: none; border-color: #dc2626; box-shadow: 0 0 0 3px rgba(220,38,38,.1);
+    background: #fff;
+  }
+  .form-input-mono { font-family: 'SF Mono', Monaco, Consolas, monospace; font-size: 12px; }
+
+  .btn-primary {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 9px 18px; border: none; border-radius: 8px;
+    font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s;
+  }
+  .btn-red { background: #dc2626; color: #fff; }
+  .btn-red:hover { background: #b91c1c; }
+  .btn-outline {
+    background: #fff; color: #374151; border: 1px solid #d1d5db;
+  }
+  .btn-outline:hover { background: #f9fafb; }
+
+  .toast {
+    position: fixed; top: 20px; right: 20px; z-index: 999;
+    padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 500;
+    box-shadow: 0 8px 24px rgba(0,0,0,.12); animation: slideIn .3s ease;
+  }
+  @keyframes slideIn {
+    from { transform: translateX(120%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+  .toast.success { background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
+  .toast.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%; display: inline-block;
+  }
+  .status-dot.green { background: #22c55e; }
+  .status-dot.yellow { background: #f59e0b; }
+  .status-dot.gray { background: #d1d5db; }
+
+  .gradient-header {
+    background: linear-gradient(135deg, #667eea 0%, #dc2626 50%, #f59e0b 100%);
+    border-radius: 12px; padding: 28px 32px; margin-bottom: 24px;
+    color: #fff;
+  }
+  .prompt-editor {
+    font-family: 'SF Mono', Monaco, Consolas, monospace;
+    font-size: 12px; line-height: 1.6;
+    width: 100%; border: 1px solid #e5e7eb; border-radius: 8px;
+    padding: 16px; resize: vertical;
+    background: #fafafa; color: #374151;
+  }
+  .prompt-editor:focus {
+    outline: none; border-color: #dc2626; box-shadow: 0 0 0 3px rgba(220,38,38,.1);
+    background: #fff;
+  }
+  .info-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 500;
+  }
+  .range-container {
+    display: flex; align-items: center; gap: 12px;
+  }
+  .range-container input[type="range"] {
+    flex: 1; height: 6px; -webkit-appearance: none; appearance: none;
+    background: #e5e7eb; border-radius: 3px; outline: none;
+  }
+  .range-container input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: #dc2626; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,.2);
+  }
+  .range-val {
+    background: #fef2f2; color: #dc2626; font-weight: 700; font-size: 13px;
+    padding: 2px 10px; border-radius: 6px; min-width: 36px; text-align: center;
+  }
+
+  .model-card {
+    border: 1px solid #e5e7eb; border-radius: 10px; padding: 20px;
+    margin-bottom: 16px; background: #fafafa; transition: border-color .2s;
+  }
+  .model-card.selected {
+    border-color: #dc2626; background: #fef2f2;
+  }
+</style>
+
+<!-- ===== 顶部梯度卡片 ===== -->
+<div class="gradient-header">
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-bold">AI Studio 配置中心</h1>
+      <p class="text-sm opacity-80 mt-1">管理模型、Agent 和提示词</p>
+    </div>
+    <div class="text-right">
+      <p class="text-xs opacity-60">当前激活</p>
+      <p class="text-lg font-bold" id="active-model-display">--</p>
+    </div>
+  </div>
+  <div class="flex items-center gap-4 mt-4">
+    <div class="flex items-center gap-2">
+      <span class="status-dot green"></span>
+      <span class="text-xs opacity-80" id="agent-count">3 个 Agent</span>
+    </div>
+    <span class="opacity-30">|</span>
+    <span class="text-xs opacity-80" id="system-prompt-size">提示词 -- 字</span>
+  </div>
+</div>
+
+<!-- ===== Tab 导航 ===== -->
+<div class="flex border-b border-gray-200 mb-0">
+  <button class="tab-btn active" onclick="switchTab('content-agent')">📝 内容加工 Agent</button>
+  <button class="tab-btn" onclick="switchTab('image-agent')">🎨 图片生成 Agent</button>
+  <button class="tab-btn" onclick="switchTab('prompt')">📋 提示词编辑器</button>
+</div>
+
+<div class="card" style="border-radius: 0 0 12px 12px; border-top: none;">
+
+<!-- ================================================================ -->
+<!-- Tab 1: 内容加工 Agent（模型配置 + Agent 信息）-->
+<!-- ================================================================ -->
+<div class="tab-content active" id="tab-content-agent">
+  <div class="p-6">
+
+    <!-- ── 模型配置 ── -->
+    <h3 class="text-sm font-semibold text-gray-700 mb-4">🤖 模型配置</h3>
+    <div class="grid grid-cols-2 gap-6 mb-4">
+      <div>
+        <label class="form-label">激活模型</label>
+        <select id="active-model" class="form-input" onchange="highlightModelCard()"
+                style="background: #fff; font-size: 14px; font-weight: 500;">
+          <option value="CONTENT_MODEL_CONFIG">Qwen2.5-VL-72B-Instruct（多模态）</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Temperature · 创造性</label>
+        <div class="range-container">
+          <span class="text-xs text-gray-400">精确</span>
+          <input type="range" id="temperature" min="0" max="2" step="0.1" value="0.7"
+                 oninput="document.getElementById('temp-val').textContent = this.value">
+          <span class="text-xs text-gray-400">随机</span>
+          <span class="range-val" id="temp-val">0.7</span>
+        </div>
+      </div>
+    </div>
+    <div id="model-configs" class="mb-4"></div>
+
+    <hr class="my-6">
+
+    <!-- ── Agent 信息 + 调用方式 ── -->
+    <h3 class="text-sm font-semibold text-gray-700 mb-4">📝 Agent 信息</h3>
+    <div class="flex items-start gap-6">
+      <div class="card p-5 w-72 shrink-0">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="text-2xl">📝</span>
+          <div>
+            <h3 class="font-semibold text-gray-800">内容加工 Agent</h3>
+            <span class="agent-badge active">运行中</span>
+          </div>
+        </div>
+        <div class="space-y-2 text-xs text-gray-500">
+          <p>文件: <code class="bg-gray-100 px-1 rounded">agent/content_agent.py</code></p>
+          <p>功能: 提炼原文 → 生成小红书标题/正文/标签 → 产出文生图提示词</p>
+          <p>模型: <span id="content-agent-model">--</span></p>
+          <p>最大重试: <code>3 次</code></p>
+          <p>超时: <code>120 秒</code></p>
+        </div>
+      </div>
+
+      <div class="flex-1">
+        <h4 class="text-sm font-semibold text-gray-700 mb-3">调用方式</h4>
+        <div class="bg-gray-50 rounded-lg p-4 mb-4">
+          <p class="text-xs text-gray-500 mb-2">在素材库中选中内容，点击「AI 智能处理」即可触发</p>
+          <code class="text-xs text-gray-600 block bg-gray-100 rounded p-2">
+            POST /api/ai/process &nbsp; content_id=X
+          </code>
+        </div>
+
+        <h4 class="text-sm font-semibold text-gray-700 mb-3">输出格式</h4>
+        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-xs">
+          <div class="grid grid-cols-2 gap-2 text-gray-600">
+            <div>✅ title <span class="text-gray-400">优化后标题（≤20字）</span></div>
+            <div>✅ body <span class="text-gray-400">完整正文（≤500字）</span></div>
+            <div>✅ tags <span class="text-gray-400">3-5个标签</span></div>
+            <div>✅ image_prompts <span class="text-gray-400">3段文生图提示词</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <button onclick="saveConfig()" class="btn-primary btn-red mt-5">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+      保存设置
+    </button>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<!-- Tab 2: 图片生成 Agent -->
+<!-- ================================================================ -->
+<div class="tab-content" id="tab-image-agent">
+  <div class="p-6">
+    <div class="flex items-start gap-6">
+      <div class="card p-5 w-72 shrink-0">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="text-2xl">🎨</span>
+          <div>
+            <h3 class="font-semibold text-gray-800">图片生成 Agent</h3>
+            <span class="agent-badge idle">待命</span>
+          </div>
+        </div>
+        <div class="space-y-2 text-xs text-gray-500">
+          <p>文件: <code class="bg-gray-100 px-1 rounded">agent/image_generator.py</code></p>
+          <p>功能: AI 处理完成后自动生成配图</p>
+          <p>模型: <code>wan2.6-t2i (DashScope)</code></p>
+          <p>分辨率: <code>1280×1280</code></p>
+          <p>水印: <code>关闭</code></p>
+        </div>
+      </div>
+
+      <div class="flex-1">
+        <h4 class="text-sm font-semibold text-gray-700 mb-3">图片生成设置</h4>
+
+        <div class="mb-4">
+          <label class="form-label">DashScope API Key</label>
+          <input type="password" id="image-api-key"
+                 class="form-input form-input-mono" placeholder="sk-...">
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 mb-4">
+          <div>
+            <label class="form-label">模型</label>
+            <select id="image-model" class="form-input" style="background:#fff">
+              <option value="wan2.6-t2i">wan2.6-t2i（推荐）</option>
+              <option value="wan2.5-t2i">wan2.5-t2i</option>
+              <option value="flux-dev">FLUX.dev</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">分辨率</label>
+            <select id="image-size" class="form-input" style="background:#fff">
+              <option value="1280*1280">1280×1280（方形）</option>
+              <option value="1024*1024">1024×1024（方形）</option>
+              <option value="720*1280">720×1280（竖版）</option>
+              <option value="1280*720">1280×720（横版）</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3 mb-4">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" id="image-watermark" class="w-4 h-4 accent-red-500">
+            <span class="text-xs text-gray-600">添加水印</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" id="image-prompt-extend" checked class="w-4 h-4 accent-red-500">
+            <span class="text-xs text-gray-600">AI 扩写提示词</span>
+          </label>
+        </div>
+
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-xs text-blue-700">
+          <p class="font-semibold mb-1">💡 工作流程</p>
+          <p>内容加工 → 产出 3 条文生图提示词 → 后台自动生成图片 → 存入素材库 → 导入帖子时附带图片</p>
+        </div>
+
+        <button onclick="saveImageConfig()" class="btn-primary btn-red mt-4">
+          保存图片生成设置
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<!-- Tab 3: 提示词编辑器 -->
+<!-- ================================================================ -->
+<div class="tab-content" id="tab-prompt">
+  <div class="p-6">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h2 class="text-lg font-semibold text-gray-800">系统提示词</h2>
+        <p class="text-xs text-gray-400 mt-1">内容加工 Agent 的核心行为准则 · 保存后立即生效</p>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="loadSystemPrompt()" class="btn-primary btn-outline text-sm">
+          🔄 重新加载
+        </button>
+        <button onclick="saveSystemPrompt()" class="btn-primary btn-red text-sm">
+          保存提示词
+        </button>
+      </div>
+    </div>
+
+    <div class="mb-3 flex items-center gap-2">
+      <span class="info-chip bg-gray-100 text-gray-600">
+        📄 agent/system_prompt.md
+      </span>
+      <span class="info-chip bg-green-100 text-green-700" id="prompt-char-count">0 字符</span>
+      <span class="info-chip bg-blue-100 text-blue-700" id="prompt-section-count">0 个章节</span>
+    </div>
+
+    <textarea id="system-prompt" rows="28" class="prompt-editor"
+              placeholder="加载中..."></textarea>
+
+    <p class="text-xs text-gray-400 mt-2">
+      此提示词定义了小红书文案的结构模板、风格指南、标签策略和强制输出 JSON 格式
+    </p>
+  </div>
+</div>
+
+</div><!-- /card -->
+
+<!-- Toast 容器 -->
+<div id="toast-container"></div>
+
+<script>
+// ─── State ──────────────────────────────────────────────────
+let aiSettings = {};
+
+// ─── Init ───────────────────────────────────────────────────
+async function init() {
+  try {
+    const resp = await fetch('/api/ai/config');
+    aiSettings = await resp.json();
+    renderModelConfigs();
+    highlightModelCard();
+    document.getElementById('temperature').value = aiSettings.temperature || 0.7;
+    document.getElementById('temp-val').textContent = aiSettings.temperature || 0.7;
+    updateActiveModelDisplay();
+    loadImageConfig();
+  } catch (e) {
+    showToast('加载模型配置失败: ' + e.message, 'error');
+  }
+  loadSystemPrompt();
+}
+
+// ─── Tab Switching ──────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelector(`[onclick="switchTab('${name}')"]`).classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+// ─── Model Configs ──────────────────────────────────────────
+function renderModelConfigs() {
+  const container = document.getElementById('model-configs');
+  const models = aiSettings.models || {};
+  const active = aiSettings.active_model || 'CONTENT_MODEL_CONFIG';
+  let html = '';
+  for (const [key, cfg] of Object.entries(models)) {
+    const sel = key === active ? ' selected' : '';
+    html += `
+      <div class="model-card${sel}" id="model-${key}">
+        <div class="flex items-center gap-2 mb-3">
+          <h3 class="text-sm font-bold text-gray-700">${key}</h3>
+          ${key === active ? '<span class="agent-badge active">激活</span>' : ''}
+        </div>
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="form-label">模型名称</label>
+            <input type="text" data-field="model_name" data-key="${key}"
+                   value="${escapeHtml(cfg.model_name || '')}" class="form-input form-input-mono">
+          </div>
+          <div>
+            <label class="form-label">API Key</label>
+            <input type="password" data-field="api_key" data-key="${key}"
+                   value="${escapeHtml(cfg.api_key || '')}" class="form-input form-input-mono">
+          </div>
+          <div>
+            <label class="form-label">Base URL</label>
+            <input type="text" data-field="base_url" data-key="${key}"
+                   value="${escapeHtml(cfg.base_url || '')}" class="form-input form-input-mono">
+          </div>
+        </div>
+      </div>`;
+  }
+  container.innerHTML = html;
+}
+
+function highlightModelCard() {
+  const active = document.getElementById('active-model').value;
+  document.querySelectorAll('.model-card').forEach(el => el.classList.remove('selected'));
+  const card = document.getElementById('model-' + active);
+  if (card) card.classList.add('selected');
+  updateActiveModelDisplay();
+}
+
+function updateActiveModelDisplay() {
+  const active = document.getElementById('active-model').value;
+  const display = document.getElementById('active-model-display');
+  const models = {
+    'CONTENT_MODEL_CONFIG': 'Qwen2.5-VL-72B'
+  };
+  display.textContent = models[active] || active;
+
+  const agentModel = document.getElementById('content-agent-model');
+  if (agentModel) agentModel.textContent = models[active] || '--';
+}
+
+// ─── Save Model Config ──────────────────────────────────────
+function collectConfig() {
+  aiSettings.active_model = document.getElementById('active-model').value;
+  aiSettings.temperature = parseFloat(document.getElementById('temperature').value);
+  document.querySelectorAll('.model-card').forEach(el => {
+    const key = el.querySelector('[data-key]')?.dataset.key;
+    if (!key) return;
+    const cfg = {};
+    el.querySelectorAll('[data-field]').forEach(input => {
+      cfg[input.dataset.field] = input.value;
+    });
+    aiSettings.models[key] = cfg;
+  });
+}
+
+async function saveConfig() {
+  collectConfig();
+  try {
+    const resp = await fetch('/api/ai/save-config', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(aiSettings)
+    });
+    const data = await resp.json();
+    if (data.success) {
+      showToast('模型设置已保存', 'success');
+      renderModelConfigs();
+      highlightModelCard();
+    } else {
+      showToast('保存失败', 'error');
+    }
+  } catch (e) {
+    showToast('保存失败: ' + e.message, 'error');
+  }
+}
+
+// ─── System Prompt ──────────────────────────────────────────
+async function loadSystemPrompt() {
+  try {
+    const resp = await fetch('/api/ai/system-prompt');
+    const data = await resp.json();
+    const content = data.content || '';
+    document.getElementById('system-prompt').value = content;
+    updatePromptStats(content);
+  } catch (e) {
+    document.getElementById('system-prompt').value = '加载失败: ' + e.message;
+  }
+}
+
+async function saveSystemPrompt() {
+  const content = document.getElementById('system-prompt').value;
+  try {
+    const resp = await fetch('/api/ai/save-system-prompt', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({content})
+    });
+    const data = await resp.json();
+    if (data.success) {
+      showToast('系统提示词已保存', 'success');
+      updatePromptStats(content);
+    } else {
+      showToast('保存失败', 'error');
+    }
+  } catch (e) {
+    showToast('保存失败: ' + e.message, 'error');
+  }
+}
+
+function updatePromptStats(content) {
+  document.getElementById('prompt-char-count').textContent = content.length + ' 字符';
+  document.getElementById('system-prompt-size').textContent = '提示词 ' + content.length + ' 字';
+  const sections = (content.match(/^[一二三四五六七八九十]、/gm) || []).length;
+  document.getElementById('prompt-section-count').textContent = sections + ' 个章节';
+}
+
+// ─── Image Config ───────────────────────────────────────────
+function loadImageConfig() {
+  const cfg = aiSettings.image_gen || {};
+  if (cfg.api_key) document.getElementById('image-api-key').value = cfg.api_key;
+  if (cfg.model) document.getElementById('image-model').value = cfg.model;
+  if (cfg.size) document.getElementById('image-size').value = cfg.size;
+  document.getElementById('image-watermark').checked = cfg.watermark || false;
+  document.getElementById('image-prompt-extend').checked = cfg.prompt_extend !== false;
+}
+
+async function saveImageConfig() {
+  const imageGen = {
+    api_key: document.getElementById('image-api-key').value,
+    model: document.getElementById('image-model').value,
+    size: document.getElementById('image-size').value,
+    watermark: document.getElementById('image-watermark').checked,
+    prompt_extend: document.getElementById('image-prompt-extend').checked,
+  };
+  aiSettings.image_gen = imageGen;
+  try {
+    const resp = await fetch('/api/ai/save-config', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(aiSettings)
+    });
+    const data = await resp.json();
+    if (data.success) {
+      showToast('图片生成设置已保存', 'success');
+    } else {
+      showToast('保存失败', 'error');
+    }
+  } catch (e) {
+    showToast('保存失败: ' + e.message, 'error');
+  }
+}
+
+// ─── Toast ──────────────────────────────────────────────────
+function showToast(msg, type) {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = 'toast ' + type;
+  toast.textContent = msg;
+  container.appendChild(toast);
+  setTimeout(() => { toast.remove(); }, 2500);
+}
+
+function escapeHtml(str) {
+  return (str || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Boot
+init();
+</script>
+
+{% endblock %}

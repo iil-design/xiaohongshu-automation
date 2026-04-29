@@ -4,7 +4,7 @@ import uuid
 import threading
 import requests
 
-from config import DASHSCOPE_API_KEY, UPLOAD_DIR
+from config import UPLOAD_DIR, load_ai_settings
 
 DASHSCOPE_IMAGE_URL = "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation"
 
@@ -55,6 +55,14 @@ def _generate_images_impl(processed_id: int, image_prompts: list[str]) -> None:
 
     print(f"[ImageGen] 开始生图 processed_id={processed_id}, prompts={len(image_prompts)}")
 
+    settings = load_ai_settings()
+    img_cfg = settings.get("image_gen", {})
+    api_key = img_cfg.get("api_key") or settings.get("models", {}).get("VL_MODEL_CONFIG", {}).get("api_key", "")
+    model = img_cfg.get("model", "wan2.6-t2i")
+    size = img_cfg.get("size", "1280*1280")
+    watermark = img_cfg.get("watermark", False)
+    prompt_extend = img_cfg.get("prompt_extend", True)
+
     # Initialize status cache
     with _lock:
         _status_cache[processed_id] = [
@@ -64,7 +72,7 @@ def _generate_images_impl(processed_id: int, image_prompts: list[str]) -> None:
 
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {DASHSCOPE_API_KEY}",
+        "Authorization": f"Bearer {api_key}",
     }
 
     for i, prompt in enumerate(image_prompts):
@@ -73,7 +81,7 @@ def _generate_images_impl(processed_id: int, image_prompts: list[str]) -> None:
         try:
             # Step 1: Call DashScope to generate image
             payload = {
-                "model": "wan2.6-t2i",
+                "model": model,
                 "input": {
                     "messages": [
                         {
@@ -84,9 +92,9 @@ def _generate_images_impl(processed_id: int, image_prompts: list[str]) -> None:
                 },
                 "parameters": {
                     "n": 1,
-                    "size": "1280*1280",
-                    "watermark": False,
-                    "prompt_extend": True,
+                    "size": size,
+                    "watermark": watermark,
+                    "prompt_extend": prompt_extend,
                 },
             }
             resp = requests.post(DASHSCOPE_IMAGE_URL, headers=headers, json=payload, timeout=120)

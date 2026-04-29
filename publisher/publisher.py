@@ -36,10 +36,10 @@ class MCPPublisher(BasePublisher):
             if not client.check_login():
                 return PublishResult(
                     success=False,
-                    message="未登录小红书，请先运行 mcp-server/xiaohongshu-login-windows-amd64.exe 扫码登录",
+                    message="未登录小红书，请先扫码登录",
                 )
 
-            # Convert image URLs back to absolute paths
+            # 把 URL 路径转回绝对路径
             image_paths = []
             for img_path in post.get_images():
                 if img_path.startswith("/static/uploads/"):
@@ -56,12 +56,13 @@ class MCPPublisher(BasePublisher):
                 title=post.title,
                 content=post.body,
                 images=image_paths,
+                tags=post.get_tags() if post.get_tags() else None,
             )
 
-            success = "失败" not in result_text and "Error" not in result_text
+            success = not any(kw in result_text for kw in ("失败", "Error", "异常", "超时"))
             return PublishResult(success=success, message=result_text)
         except Exception as e:
-            return PublishResult(success=False, message=f"MCP 发布异常: {e}")
+            return PublishResult(success=False, message=f"发布异常: {e}")
 
     def close(self):
         if self._client:

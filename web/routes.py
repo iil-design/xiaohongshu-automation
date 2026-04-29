@@ -11,12 +11,21 @@ from fastapi.responses import JSONResponse
 from models.models import SessionLocal, Post, PublishLog
 from models.content import SessionLocal as ContentSessionLocal, Content
 from scheduler.scheduler import add_schedule, remove_schedule
-from agent.poster_agent import review_content
 from agent.image_generator import generate_images, get_status
 from publisher.publisher import get_publisher
 from config import UPLOAD_DIR, MAX_IMAGES, MAX_IMAGE_SIZE_MB
 
 router = APIRouter()
+
+
+def _check_mcp_health():
+    from main import check_mcp_health
+    return check_mcp_health()
+
+
+def _restart_mcp_server():
+    from main import restart_mcp_server
+    return restart_mcp_server()
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
@@ -56,6 +65,7 @@ async def create_post(
     scheduled_at: str = Form(default=""),
     action: str = Form(default="draft"),
     images: list[UploadFile] = File(default=[]),
+    post_id: int = Form(default=0),
 ):
     # Convert datetime-local format (YYYY-MM-DDTHH:MM) to expected
     if scheduled_at and "T" in scheduled_at:
@@ -79,36 +89,44 @@ async def create_post(
                 f.write(content)
             image_paths.append(f"/static/uploads/{filename}")
 
-    db = SessionLocal()
-    post_id = None
-    try:
-        status = "draft"
-        if action == "schedule" and scheduled_at:
-            status = "scheduled"
+    tag_list = [t.strip() for t in tags.replace("，", ",").split(",") if t.strip()]
 
-        post = Post(
-            title=title,
-            body=body,
-            scheduled_at=scheduled_at if scheduled_at else None,
-            status=status,
-        )
-        post.set_images(image_paths)
-        # 解析标签：逗号分隔
-        tag_list = [t.strip() for t in tags.replace("，", ",").split(",") if t.strip()]
-        post.set_tags(tag_list)
-        db.add(post)
-        db.commit()
-        db.refresh(post)
-        post_id = post.id
+    db = SessionLocal()
+    try:
+        status = "scheduled" if (action == "schedule" and scheduled_at) else "draft"
+
+        if post_id:
+            # 更新已有帖子
+            post = db.query(Post).filter(Post.id == post_id).first()
+            if not post:
+                return RedirectResponse(url="/", status_code=303)
+            post.title = title
+            post.body = body
+            post.set_tags(tag_list)
+            if image_paths:
+                post.set_images(image_paths)
+            post.scheduled_at = scheduled_at if scheduled_at else None
+            post.status = status
+            post.error_msg = None
+            db.commit()
+            db.refresh(post)
+        else:
+            # 新建帖子
+            post = Post(
+                title=title,
+                body=body,
+                scheduled_at=scheduled_at if scheduled_at else None,
+                status=status,
+            )
+            post.set_images(image_paths)
+            post.set_tags(tag_list)
+            db.add(post)
+            db.commit()
+            db.refresh(post)
+            post_id = post.id
 
         if status == "scheduled":
-            review = review_content(title, body)
-            if not review.get("ok", True):
-                post.status = "failed"
-                post.error_msg = f"内容审核不通过: {review.get('reason', '')}"
-                db.commit()
-            else:
-                add_schedule(post_id, scheduled_at)
+            add_schedule(post.id, scheduled_at)
 
         db.close()
     except Exception as e:
@@ -155,31 +173,33 @@ def publish_now(post_id: int = Form(...)):
     db = SessionLocal()
     try:
         post = db.query(Post).filter(Post.id == post_id).first()
-        if post:
-            review = review_content(post.title, post.body)
-            if not review.get("ok", True):
-                post.status = "failed"
-                post.error_msg = f"内容审核不通过: {review.get('reason', '')}"
-                post.updated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                db.commit()
-            else:
-                from publisher.publisher import get_publisher
-                pub = get_publisher()
-                result = pub.publish(post)
-                now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                post.status = "published" if result.success else "failed"
-                post.published_at = now if result.success else None
-                post.error_msg = result.message if not result.success else None
-                post.updated_at = now
+        if not post:
+            return RedirectResponse(url="/", status_code=303)
 
-                log = PublishLog(
-                    post_id=post_id,
-                    action="manual",
-                    result="success" if result.success else "failed",
-                    message=result.message,
-                )
-                db.add(log)
-                db.commit()
+        if not _check_mcp_health():
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            post.status = "failed"
+            post.error_msg = "MCP 服务无响应，请先重启 MCP 服务后再发布"
+            post.updated_at = now
+            db.commit()
+        else:
+            from publisher.publisher import get_publisher
+            pub = get_publisher()
+            result = pub.publish(post)
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            post.status = "published" if result.success else "failed"
+            post.published_at = now if result.success else None
+            post.error_msg = result.message if not result.success else None
+            post.updated_at = now
+
+            log = PublishLog(
+                post_id=post_id,
+                action="manual",
+                result="success" if result.success else "failed",
+                message=result.message,
+            )
+            db.add(log)
+            db.commit()
     finally:
         db.close()
     return RedirectResponse(url="/", status_code=303)
@@ -190,7 +210,14 @@ def retry_post(post_id: int = Form(...)):
     db = SessionLocal()
     try:
         post = db.query(Post).filter(Post.id == post_id).first()
-        if post and post.status == "failed":
+        if not post or post.status != "failed":
+            return RedirectResponse(url="/", status_code=303)
+
+        if not _check_mcp_health():
+            post.error_msg = "MCP 服务无响应，请先重启 MCP 服务后再发布"
+            post.updated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            db.commit()
+        else:
             from publisher.publisher import get_publisher
             pub = get_publisher()
             result = pub.publish(post)
@@ -277,6 +304,52 @@ def login_endpoint():
             "success": False,
             "message": f"获取二维码失败: {str(e)}"
         })
+
+
+@router.get("/api/mcp/health")
+def mcp_health():
+    """检查 MCP 服务器是否响应"""
+    ok = _check_mcp_health()
+    return JSONResponse({
+        "healthy": ok,
+        "message": "MCP 服务正常" if ok else "MCP 服务无响应，请尝试重启",
+    })
+
+
+@router.post("/api/mcp/restart")
+def mcp_restart():
+    """重启 MCP 服务器"""
+    import threading
+
+    def _restart():
+        ok = _restart_mcp_server()
+        if ok:
+            print("[MCP] 重启成功")
+        else:
+            print("[MCP] 重启失败")
+
+    # Run in background thread to avoid blocking
+    t = threading.Thread(target=_restart, daemon=True)
+    t.start()
+    t.join(timeout=35)
+
+    ok = _check_mcp_health()
+    # Reset publisher client so it re-initializes
+    pub = get_publisher()
+    pub._client = None
+    return JSONResponse({
+        "success": ok,
+        "message": "MCP 服务已重启" if ok else "MCP 服务重启失败，请手动重启应用",
+    })
+
+
+@router.get("/api/mcp/tools")
+def mcp_list_tools():
+    """列出 MCP 服务器注册的工具（调试用）"""
+    pub = get_publisher()
+    client = pub._get_client()
+    result = client.list_tools()
+    return JSONResponse(result)
 
 
 @router.post("/api/scrapers/github-trending")

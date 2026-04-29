@@ -1,13 +1,14 @@
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
-from config import LLM_CONFIG
+from config import get_active_model_config
 
 
 def _build_llm():
+    cfg = get_active_model_config()
     return ChatOpenAI(
-        model=LLM_CONFIG["model_name"],
-        api_key=LLM_CONFIG["api_key"],
-        base_url=LLM_CONFIG["base_url"],
+        model=cfg["model_name"],
+        api_key=cfg["api_key"],
+        base_url=cfg["base_url"],
         temperature=0.3,
     )
 

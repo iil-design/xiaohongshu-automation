@@ -116,7 +116,7 @@ git commit -m "feat: add images field to ProcessedContent model"
 In `config.py`, add after `MAX_IMAGE_SIZE_MB = 10` line:
 
 ```python
-DASHSCOPE_API_KEY = "sk-2779612cd26547fab22f55d641926d9f"
+DASHSCOPE_API_KEY = os.environ.get("DASHSCOPE_API_KEY", "")
 ```
 
 - [ ] **Step 2: Write the image_generator module with `generate_images` and `get_status`**

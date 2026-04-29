@@ -18,6 +18,7 @@ class Post(Base):
     title = Column(String(200), nullable=False, default="")
     body = Column(Text, nullable=False, default="")
     images = Column(Text, nullable=False, default="[]")
+    tags = Column(Text, nullable=False, default="[]")
     status = Column(String(20), nullable=False, default="draft")
     scheduled_at = Column(String(30), nullable=True)
     published_at = Column(String(30), nullable=True)
@@ -34,10 +35,16 @@ class Post(Base):
     logs = relationship("PublishLog", back_populates="post", cascade="all, delete-orphan")
 
     def get_images(self):
-        return json.loads(self.images)
+        return json.loads(self.images) if self.images else []
 
     def set_images(self, paths):
-        self.images = json.dumps(paths, ensure_ascii=False)
+        self.images = json.dumps(paths or [], ensure_ascii=False)
+
+    def get_tags(self):
+        return json.loads(self.tags) if self.tags else []
+
+    def set_tags(self, tags_list):
+        self.tags = json.dumps(tags_list or [], ensure_ascii=False)
 
     def to_dict(self):
         return {
@@ -45,6 +52,7 @@ class Post(Base):
             "title": self.title,
             "body": self.body,
             "images": self.get_images(),
+            "tags": self.get_tags(),
             "status": self.status,
             "scheduled_at": self.scheduled_at,
             "published_at": self.published_at,
@@ -80,3 +88,12 @@ class PublishLog(Base):
 
 
 Base.metadata.create_all(bind=engine)
+
+# 兼容存量数据库：尝试添加 tags 列
+try:
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        conn.execute(text("ALTER TABLE posts ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'"))
+        conn.commit()
+except Exception:
+    pass

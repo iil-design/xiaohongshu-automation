@@ -1,5 +1,32 @@
+# Python
 __pycache__/
-data.db
-mcp-server/*.zip
+*.pyc
+*.pyo
+.venv/
+
+# Environment & Secrets
+.env
+.env.local
+
+# Databases
+*.db
+
+# MCP binaries
 mcp-server/*.exe
+mcp-server/*.exe~
+mcp-server/*.zip
+
+# IDE & Tools
+.claude/
 .superpowers/
+.vscode/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Uploads (user-generated content)
+static/uploads/*

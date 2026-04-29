@@ -5,7 +5,11 @@
   {% if post %}编辑帖子{% else %}新建帖子{% endif %}
 </h1>
 
-<form action="/posts/create" method="post" enctype="multipart/form-data" class="space-y-6">
+<div id="login-warning" class="hidden mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+  <p class="text-sm text-red-700">⚠️ 未登录小红书，无法定时发布。请先运行 <code class="bg-red-100 px-1 rounded">mcp-server/xiaohongshu-login-windows-amd64.exe</code> 扫码登录。</p>
+</div>
+
+<form action="/posts/create" method="post" enctype="multipart/form-data" class="space-y-6" onsubmit="return handleFormSubmit(event)">
   {% if post %}
   <input type="hidden" name="post_id" value="{{ post.id }}">
   {% endif %}
@@ -38,6 +42,15 @@
   </div>
 
   <div class="bg-white rounded-lg shadow-sm border p-4">
+    <label class="block text-sm font-medium text-gray-700 mb-2">🏷️ 标签</label>
+    <input type="text" id="tags-input" name="tags"
+           value="{{ ', '.join(post.tags) if post and post.tags else '' }}"
+           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-red-200 focus:border-red-400 outline-none"
+           placeholder="输入标签，用逗号分隔（例如：AI工具, 小红书运营, 效率提升）">
+    <div class="flex flex-wrap gap-1 mt-2" id="tags-preview"></div>
+  </div>
+
+  <div class="bg-white rounded-lg shadow-sm border p-4">
     <label class="block text-sm font-medium text-gray-700 mb-2">⏰ 发布时间（可选）</label>
     <input type="datetime-local" name="scheduled_at"
            value="{{ post.scheduled_at if post and post.scheduled_at else '' }}"
@@ -55,5 +68,77 @@
     </button>
   </div>
 </form>
+
+<script>
+  // 标签预览
+  const tagsInput = document.getElementById('tags-input');
+  const tagsPreview = document.getElementById('tags-preview');
+
+  function renderTags() {
+    const raw = tagsInput.value || '';
+    const tags = raw.split(/[,，]/).map(t => t.trim()).filter(t => t);
+    tagsPreview.innerHTML = '';
+    tags.forEach(t => {
+      const span = document.createElement('span');
+      span.className = 'text-xs bg-red-50 text-red-500 px-2 py-1 rounded';
+      span.textContent = '#' + t;
+      tagsPreview.appendChild(span);
+    });
+  }
+
+  if (tagsInput) {
+    tagsInput.addEventListener('input', renderTags);
+    renderTags();
+  }
+
+  async function handleFormSubmit(e) {
+    const actionButton = e.submitter.getAttribute('name');
+    const actionValue = e.submitter.getAttribute('value');
+
+    if (actionValue === 'schedule') {
+      try {
+        const [loginResp, mcpResp] = await Promise.all([
+          fetch('/api/login-status'),
+          fetch('/api/mcp/health')
+        ]);
+        const loginData = await loginResp.json();
+        const mcpData = await mcpResp.json();
+
+        if (!loginData.logged_in) {
+          alert('❌ 未登录小红书，无法定时发布。请先在顶部导航栏扫码登录。');
+          return false;
+        }
+        if (!mcpData.healthy) {
+          alert('❌ MCP 服务离线，无法定时发布。请点击顶部导航栏的"重启MCP"按钮后再试。');
+          return false;
+        }
+      } catch (error) {
+        console.error('Check failed:', error);
+        alert('检查服务状态失败，请稍后重试');
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  async function updateLoginWarning() {
+    try {
+      const response = await fetch('/api/login-status');
+      const data = await response.json();
+      const warningEl = document.getElementById('login-warning');
+      if (!data.logged_in) {
+        warningEl.classList.remove('hidden');
+      } else {
+        warningEl.classList.add('hidden');
+      }
+    } catch (error) {
+      console.error('Failed to update login warning:', error);
+    }
+  }
+
+  updateLoginWarning();
+  setInterval(updateLoginWarning, 30000);
+</script>
 
 {% endblock %}

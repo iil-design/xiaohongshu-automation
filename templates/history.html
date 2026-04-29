@@ -1,51 +1,140 @@
 {% extends "base.html" %}
+{% block main_width %}max-w-6xl{% endblock %}
 {% block content %}
 
-<h1 class="text-2xl font-bold text-gray-800 mb-6">发布历史</h1>
+<style>
+  .history-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .history-table thead th {
+    text-align: left; padding: 12px 16px; font-weight: 600; font-size: 11px;
+    text-transform: uppercase; letter-spacing: .5px; color: #6b7280;
+    background: #f9fafb; border-bottom: 2px solid #e5e7eb;
+    white-space: nowrap;
+  }
+  .history-table tbody td {
+    padding: 14px 16px; border-bottom: 1px solid #f3f4f6; vertical-align: middle;
+  }
+  .history-table tbody tr { transition: background .12s; }
+  .history-table tbody tr:hover { background: #fef2f2; }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;
+    white-space: nowrap;
+  }
+  .badge-success { background: #ecfdf5; color: #059669; }
+  .badge-error { background: #fef2f2; color: #dc2626; }
+  .badge-schedule { background: #eff6ff; color: #2563eb; }
+  .badge-manual { background: #f0fdf4; color: #16a34a; }
+  .badge-retry { background: #fff7ed; color: #ea580c; }
+
+  .stat-card {
+    background: #fff; border-radius: 10px; padding: 16px 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04); border: 1px solid #f0f0f0;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .stat-icon { font-size: 24px; }
+  .stat-value { font-size: 22px; font-weight: 700; color: #1f2937; }
+  .stat-label { font-size: 11px; color: #9ca3af; text-transform: uppercase; letter-spacing: .3px; }
+
+  .msg-preview {
+    max-width: 280px; display: block; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; color: #9ca3af; font-size: 12px;
+    cursor: default;
+  }
+  .msg-preview:hover { color: #6b7280; white-space: normal; overflow: visible; }
+</style>
+
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-bold text-gray-800">发布历史</h1>
+    <p class="text-sm text-gray-400 mt-0.5">最近 100 条发布记录</p>
+  </div>
+</div>
 
 {% if logs %}
-<div class="bg-white rounded-lg shadow-sm border overflow-hidden">
-  <table class="w-full text-sm">
-    <thead>
-      <tr class="bg-gray-50 text-left text-gray-600">
-        <th class="px-4 py-3 font-medium">帖子</th>
-        <th class="px-4 py-3 font-medium">操作</th>
-        <th class="px-4 py-3 font-medium">结果</th>
-        <th class="px-4 py-3 font-medium">时间</th>
-        <th class="px-4 py-3 font-medium">详情</th>
-      </tr>
-    </thead>
-    <tbody class="divide-y">
-      {% for log in logs %}
-      <tr>
-        <td class="px-4 py-3 text-gray-800">{{ log.post_title }}</td>
-        <td class="px-4 py-3">
-          {% if log.action == 'scheduled' %}
-          <span class="text-blue-600">定时发布</span>
-          {% elif log.action == 'manual' %}
-          <span class="text-green-600">手动发布</span>
-          {% else %}
-          <span class="text-orange-600">重试</span>
-          {% endif %}
-        </td>
-        <td class="px-4 py-3">
-          {% if log.result == 'success' %}
-          <span class="text-green-600">✅ 成功</span>
-          {% else %}
-          <span class="text-red-500">❌ 失败</span>
-          {% endif %}
-        </td>
-        <td class="px-4 py-3 text-gray-500">{{ log.created_at }}</td>
-        <td class="px-4 py-3 text-gray-500 text-xs">{{ log.message or '-' }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+<!-- 统计卡片 -->
+<div class="grid grid-cols-4 gap-4 mb-6">
+  <div class="stat-card">
+    <span class="stat-icon">📊</span>
+    <div>
+      <p class="stat-value">{{ logs|length }}</p>
+      <p class="stat-label">总记录</p>
+    </div>
+  </div>
+  {% set success_count = logs | selectattr('result', 'equalto', 'success') | list | length %}
+  <div class="stat-card">
+    <span class="stat-icon">✅</span>
+    <div>
+      <p class="stat-value" style="color:#059669;">{{ success_count }}</p>
+      <p class="stat-label">发布成功</p>
+    </div>
+  </div>
+  {% set fail_count = logs | selectattr('result', 'equalto', 'failed') | list | length %}
+  <div class="stat-card">
+    <span class="stat-icon">❌</span>
+    <div>
+      <p class="stat-value" style="color:#dc2626;">{{ fail_count }}</p>
+      <p class="stat-label">发布失败</p>
+    </div>
+  </div>
+  <div class="stat-card">
+    <span class="stat-icon">📈</span>
+    <div>
+      <p class="stat-value">{{ "%.0f" | format(success_count / (logs|length) * 100) if logs|length > 0 else 0 }}%</p>
+      <p class="stat-label">成功率</p>
+    </div>
+  </div>
 </div>
+
+<!-- 表格 -->
+<div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="history-table">
+      <thead>
+        <tr>
+          <th style="width:30%;">帖子</th>
+          <th style="width:10%;">操作类型</th>
+          <th style="width:8%;">结果</th>
+          <th style="width:15%;">时间</th>
+          <th>详情</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr>
+          <td class="font-medium text-gray-800">{{ log.post_title }}</td>
+          <td>
+            {% if log.action == 'scheduled' %}
+            <span class="badge badge-schedule">⏳ 定时</span>
+            {% elif log.action == 'manual' %}
+            <span class="badge badge-manual">▶ 手动</span>
+            {% else %}
+            <span class="badge badge-retry">↻ 重试</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if log.result == 'success' %}
+            <span class="badge badge-success">✅ 成功</span>
+            {% else %}
+            <span class="badge badge-error">❌ 失败</span>
+            {% endif %}
+          </td>
+          <td class="text-gray-500 text-xs">{{ log.created_at }}</td>
+          <td>
+            <span class="msg-preview" title="{{ log.message or '' | e }}">{{ log.message or '－' }}</span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
 {% else %}
-<div class="text-center py-20 text-gray-400">
-  <p class="text-4xl mb-4">📋</p>
-  <p>暂无发布记录</p>
+<div class="text-center py-28 text-gray-400">
+  <p class="text-5xl mb-5">📋</p>
+  <p class="text-lg font-medium text-gray-500">暂无发布记录</p>
+  <p class="text-sm mt-2">发布帖子后，记录会显示在这里</p>
 </div>
 {% endif %}
 

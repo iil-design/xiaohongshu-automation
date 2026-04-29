@@ -8,15 +8,194 @@
 </head>
 <body class="bg-gray-50 min-h-screen">
   <nav class="bg-white shadow-sm border-b">
-    <div class="max-w-4xl mx-auto px-4 py-3 flex items-center gap-6">
-      <a href="/" class="text-lg font-bold text-red-500">📕 小红书发帖助手</a>
-      <a href="/" class="text-sm text-gray-600 hover:text-gray-900">帖子管理</a>
-      <a href="/editor" class="text-sm text-gray-600 hover:text-gray-900">新建帖子</a>
-      <a href="/history" class="text-sm text-gray-600 hover:text-gray-900">发布历史</a>
+    <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-6">
+        <a href="/" class="text-lg font-bold text-red-500">📕 小红书发帖助手</a>
+        <a href="/" class="text-sm text-gray-600 hover:text-gray-900">帖子管理</a>
+        <a href="/editor" class="text-sm text-gray-600 hover:text-gray-900">新建帖子</a>
+        <a href="/library" class="text-sm text-gray-600 hover:text-gray-900">素材库</a>
+        <a href="/history" class="text-sm text-gray-600 hover:text-gray-900">发布历史</a>
+        <a href="/settings" class="text-sm text-gray-400 hover:text-gray-600">⚙️ AI配置</a>
+      </div>
+      <div class="flex items-center gap-3">
+        <div id="mcp-status" class="text-xs flex items-center gap-1">
+          <span class="inline-block w-2 h-2 rounded-full bg-gray-400"></span>
+          <span class="text-gray-400">MCP</span>
+        </div>
+        <button id="mcp-restart-btn" onclick="restartMcp()"
+                class="text-xs text-orange-500 hover:text-orange-700 px-1.5 py-0.5 border border-orange-300 rounded hidden"
+                title="重启 MCP 服务">
+          🔄 重启MCP
+        </button>
+        <div id="login-status" class="text-sm">
+          <span class="inline-block animate-pulse">🔄 检查中...</span>
+        </div>
+        <button id="login-btn" onclick="login()"
+                class="text-sm text-white bg-red-500 hover:bg-red-600 px-3 py-1.5 rounded hidden">
+          🔗 扫码登录
+        </button>
+        <button id="logout-btn" onclick="logout()"
+                class="text-sm text-gray-500 hover:text-red-600 px-2 py-1 border rounded hidden">
+          退出登录
+        </button>
+      </div>
     </div>
   </nav>
-  <main class="max-w-4xl mx-auto px-4 py-8">
+
+  <!-- 扫码登录弹窗 -->
+  <div id="qrcode-modal" class="hidden fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center">
+    <div class="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-bold text-gray-800">📱 扫码登录小红书</h3>
+        <button onclick="closeQrcode()" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+      </div>
+      <div class="text-center">
+        <img id="qrcode-img" src="" alt="登录二维码" class="mx-auto w-56 h-56 border rounded-lg">
+        <p class="text-sm text-gray-500 mt-3" id="qrcode-msg">请打开小红书 App 扫描二维码</p>
+      </div>
+      <button onclick="closeQrcode()" class="mt-4 w-full py-2 text-sm text-gray-500 hover:text-gray-700 border rounded-lg">
+        取消
+      </button>
+    </div>
+  </div>
+
+  <main class="mx-auto px-4 py-8 {% block main_width %}max-w-4xl{% endblock %}">
     {% block content %}{% endblock %}
   </main>
+
+  <script>
+    let loginPollTimer = null;
+
+    async function checkLoginStatus() {
+      try {
+        const response = await fetch('/api/login-status');
+        const data = await response.json();
+        const statusEl = document.getElementById('login-status');
+        const loginBtn = document.getElementById('login-btn');
+        const logoutBtn = document.getElementById('logout-btn');
+
+        if (data.logged_in) {
+          statusEl.innerHTML = '<span class="text-green-600 font-semibold">✅ 已登录</span>';
+          loginBtn.classList.add('hidden');
+          logoutBtn.classList.remove('hidden');
+        } else {
+          statusEl.innerHTML = '<span class="text-red-600 font-semibold">❌ 未登录</span>';
+          loginBtn.classList.remove('hidden');
+          logoutBtn.classList.add('hidden');
+        }
+      } catch (error) {
+        const statusEl = document.getElementById('login-status');
+        statusEl.innerHTML = '<span class="text-orange-600 text-xs">状态检查异常</span>';
+      }
+    }
+
+    async function login() {
+      const loginBtn = document.getElementById('login-btn');
+      loginBtn.disabled = true;
+      loginBtn.textContent = '🔄 获取中...';
+
+      try {
+        const response = await fetch('/api/login', { method: 'POST' });
+        const data = await response.json();
+
+        if (data.success && data.qrcode) {
+          // 展示二维码
+          document.getElementById('qrcode-img').src = 'data:image/png;base64,' + data.qrcode;
+          document.getElementById('qrcode-modal').classList.remove('hidden');
+
+          // 每 2 秒轮询登录状态
+          loginPollTimer = setInterval(async () => {
+            const statusResp = await fetch('/api/login-status');
+            const statusData = await statusResp.json();
+            if (statusData.logged_in) {
+              closeQrcode();
+              alert('✅ 登录成功！');
+              location.reload();
+            }
+          }, 2000);
+
+          // 5 分钟后超时关闭
+          setTimeout(() => {
+            if (loginPollTimer) {
+              closeQrcode();
+              alert('⏰ 登录超时，请重试');
+            }
+          }, 300000);
+
+        } else {
+          alert('❌ 获取二维码失败\n' + (data.message || '未知错误'));
+        }
+      } catch (e) {
+        alert('❌ 请求失败\n' + e.message);
+      }
+      loginBtn.disabled = false;
+      loginBtn.textContent = '🔗 扫码登录';
+    }
+
+    function closeQrcode() {
+      document.getElementById('qrcode-modal').classList.add('hidden');
+      document.getElementById('qrcode-img').src = '';
+      if (loginPollTimer) {
+        clearInterval(loginPollTimer);
+        loginPollTimer = null;
+      }
+    }
+
+    async function logout() {
+      if (!confirm('确定要退出小红书登录吗？退出后需要重新扫码登录。')) return;
+      try {
+        const response = await fetch('/api/delete-cookies', { method: 'POST' });
+        const data = await response.json();
+        alert(data.success ? '已退出登录' : `退出失败: ${data.message}`);
+        checkLoginStatus();
+      } catch (e) {
+        alert('退出登录失败: ' + e.message);
+      }
+    }
+
+    // ── MCP health ──────────────────────────────────────────
+    async function checkMcpHealth() {
+      try {
+        const resp = await fetch('/api/mcp/health');
+        const data = await resp.json();
+        const statusEl = document.getElementById('mcp-status');
+        const restartBtn = document.getElementById('mcp-restart-btn');
+        if (data.healthy) {
+          statusEl.innerHTML = '<span class="inline-block w-2 h-2 rounded-full bg-green-500"></span><span class="text-green-600">MCP</span>';
+          restartBtn.classList.add('hidden');
+        } else {
+          statusEl.innerHTML = '<span class="inline-block w-2 h-2 rounded-full bg-red-500"></span><span class="text-red-600">MCP 离线</span>';
+          restartBtn.classList.remove('hidden');
+        }
+      } catch (e) {
+        document.getElementById('mcp-status').innerHTML = '<span class="inline-block w-2 h-2 rounded-full bg-gray-400"></span><span class="text-gray-400">MCP</span>';
+      }
+    }
+
+    async function restartMcp() {
+      const btn = document.getElementById('mcp-restart-btn');
+      btn.disabled = true;
+      btn.textContent = '⏳ 重启中...';
+      try {
+        const resp = await fetch('/api/mcp/restart', { method: 'POST' });
+        const data = await resp.json();
+        if (data.success) {
+          alert('✅ MCP 服务已重启');
+        } else {
+          alert('❌ MCP 重启失败: ' + data.message);
+        }
+      } catch (e) {
+        alert('❌ 重启请求失败: ' + e.message);
+      }
+      btn.disabled = false;
+      btn.textContent = '🔄 重启MCP';
+      checkMcpHealth();
+    }
+
+    checkLoginStatus();
+    checkMcpHealth();
+    setInterval(checkLoginStatus, 30000);
+    setInterval(checkMcpHealth, 15000);
+  </script>
 </body>
 </html>
