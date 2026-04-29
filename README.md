@@ -1,17 +1,28 @@
-# 小红书发帖助手
+<img width="1531" height="775" alt="4c2a22facc3ad0e7a4c9e8b89b697aed" src="https://github.com/user-attachments/assets/c7262616-99c3-446d-8aca-a7d9855b166c" /># 小红书发帖助手
 
 基于 AI 的小红书内容创作与发布管理平台。支持 AI 生成文案、自动生成配图、定时发布、扫码登录等功能。
 
 ## 功能概览
 
 - **帖子管理** — 创建、编辑、删除、草稿保存
+- <img width="2175" height="1118" alt="5fa93f7800906fe3b518ce2c6646685f" src="https://github.com/user-attachments/assets/cad07ee7-e039-49cc-8760-5358ed4c23a1" />
+
 - **AI 内容创作** — 基于大模型自动生成标题、正文、话题标签和配图提示词
+- <img width="1605" height="998" alt="image" src="https://github.com/user-attachments/assets/1b8fd2c1-5850-4a50-85b7-e4541dec6bec" />
+
 - **AI 图片生成** — 根据文案自动生成配图（DashScope wan2.6-t2i）
 - **内容素材库** — 抓取外部热点内容（GitHub Trending、抖查查等），AI 加工后导入草稿
+- <img width="2175" height="1118" alt="09befd64bd7fb4c7c349fd9d57e5beeb" src="https://github.com/user-attachments/assets/ca12c6fc-a915-4f3a-aea2-e90347f9caab" />
+
 - **定时发布** — 支持设定发布时间，后台自动发布
+- 
 - **扫码登录** — 通过 MCP 服务扫码登录小红书账号
 - **发布历史** — 记录每次发布操作的成功/失败日志
+- <img width="1531" height="775" alt="4c2a22facc3ad0e7a4c9e8b89b697aed" src="https://github.com/user-attachments/assets/e40420ad-9fa4-4ffe-bccd-eb9271ef2f60" />
+
 - **AI 配置** — 可视化调整模型、温度、图片生成参数、系统提示词
+- <img width="2175" height="1118" alt="a4e2a768b611d38e5617a4ae77844521" src="https://github.com/user-attachments/assets/66d8b9b7-4469-4a77-96d2-dac54401fb93" />
+
 
 ## 技术栈
 
