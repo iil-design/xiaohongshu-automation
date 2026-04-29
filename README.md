@@ -1,4 +1,4 @@
-<img width="1531" height="775" alt="4c2a22facc3ad0e7a4c9e8b89b697aed" src="https://github.com/user-attachments/assets/c7262616-99c3-446d-8aca-a7d9855b166c" /># 小红书发帖助手
+
 
 基于 AI 的小红书内容创作与发布管理平台。支持 AI 生成文案、自动生成配图、定时发布、扫码登录等功能。
 
